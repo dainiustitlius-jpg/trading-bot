@@ -295,7 +295,7 @@ tr:last-child td { border-bottom: 0; }
     var b = S.backtest;
     if (!b) return "";
     var wr = b.win_rate == null ? "–" : Math.round(100 * b.win_rate) + "%";
-    return '<section class="panel"><div class="head"><h2>Backtest ' + esc(b.from) + ' – ' + esc(b.to) + '</h2><span class="small muted">' + esc(b.days) + ' d. · ' + esc((b.symbols || []).length) + ' akc. · naujienų filtras praleistas</span></div>' +
+    return '<section class="panel"><div class="head"><h2>Backtest ' + esc(b.from) + ' – ' + esc(b.to) + '</h2><span class="small ' + (b.status === "running" ? '" style="color:var(--orange)">Vyksta: ' + esc(b.done) + ' iš ' + esc(b.days) + ' d.' : 'muted">' + esc(b.days) + ' d.') + ' · ' + esc((b.symbols || []).length) + ' akc. · naujienų filtras praleistas</span></div>' +
       '<div class="kpis"><div class="inset"><div class="xs muted">Sandoriai</div><div class="mono" style="font-size:20px">' + esc(b.trades) + '</div></div>' +
       '<div class="inset"><div class="xs muted">Pelningi</div><div class="mono" style="font-size:20px">' + wr + '</div></div>' +
       '<div class="inset"><div class="xs muted">Rezultatas</div><div class="mono ' + cls(b.pnl) + '" style="font-size:20px">' + signed(b.pnl) + '</div></div>' +

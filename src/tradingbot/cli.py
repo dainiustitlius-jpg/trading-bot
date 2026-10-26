@@ -217,6 +217,9 @@ def cmd_fetch(args) -> int:
 
 def cmd_backtest(args) -> int:
     ws = Path(args.workspace or "runs/backtest")
+    if args.dashboard:  # up first: the Sandoriai tab follows the backtest day by day
+        args.workspace = str(ws)
+        _dashboard(args, background=True)
     res = backtest.run(
         _config_path(args) if _config_path(args).is_file() else None,
         Path(args.history),
@@ -242,9 +245,10 @@ def cmd_backtest(args) -> int:
     print("  išėjimai: %s" % (", ".join("%s %d" % kv for kv in res["exits"].items()) or "–"))
     print("Failas: %s" % (ws / "bot" / "backtest.json"))
     if args.dashboard:
-        args.workspace = str(ws)
+        print("Backtest baigtas. Pultas veikia, kol paspausite Ctrl+C.")
         try:
-            _dashboard(args, background=False)
+            while True:
+                time.sleep(3600)
         except KeyboardInterrupt:
             pass
     return 0

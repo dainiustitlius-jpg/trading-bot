@@ -95,11 +95,21 @@ def run(
         line = ", ".join("%s %+.2f (%s)" % (t["symbol"], t["pnl"], t["reason"]) for t in new) or "be sandorių"
         echo("%2d/%d %s %s" % (i, len(tradable), day, line))
         shutil.rmtree(folder, ignore_errors=True)
+        write_json(bot.store.dir / "backtest.json", _result(charts, tradable, config_path, bot, i))
     shutil.rmtree(days_dir, ignore_errors=True)
+    result = _result(charts, tradable, config_path, bot, len(tradable))
+    write_json(bot.store.dir / "backtest.json", result)
+    return result
+
+
+def _result(charts: dict, tradable: list, config_path, bot: Bot, done: int) -> dict:
+    """The summary so far; the dashboard reads it while the backtest runs."""
 
     trades = bot.store.trades()
     budget = float(bot.ws.config().get("budget") or 0)
-    result = {
+    return {
+        "status": "done" if done >= len(tradable) else "running",
+        "done": done,
         "symbols": sorted(charts),
         "from": tradable[0].isoformat(),
         "to": tradable[-1].isoformat(),
@@ -109,8 +119,6 @@ def run(
         **summarize(trades, budget),
         "by_day": _by_day(trades),
     }
-    write_json(bot.store.dir / "backtest.json", result)
-    return result
 
 
 def _by_day(trades: list[dict]) -> dict[str, float]:
