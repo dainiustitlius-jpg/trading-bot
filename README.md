@@ -69,8 +69,8 @@ Store, rašykite `py` vietoj `python`.
 | `dashboard` | tik pultas |
 | `replay --date D --data DIR --workspace W` | viena išsaugota diena su fiksuotu laikrodžiu (`--start`, `--end`, `--dashboard`) |
 | `fetch` | atsisiunčia 60 dienų 5 min. barus backtest'ui (`--symbols`, numatyta 40 likvidžių JAV akcijų) |
-| `backtest` | visas botas per išsaugotas dienas (`--days`, `--symbols`, `--dashboard`) |
-| `sweep` | tas pats backtest su keliais stop/target/uždarymo variantais, surikiuota (`--variants`, `--workers`, `--dashboard`) |
+| `backtest` | visas botas per išsaugotas dienas (`--fast` per sekundes, `--days`, `--symbols`, `--dashboard`) |
+| `sweep` | 24 stop/target/uždarymo variantai per kelias sekundes, surikiuota (`--variants`, `--full`, `--dashboard`) |
 | `notify-test` | bandomasis pranešimas visais sukonfigūruotais kanalais |
 | `pass` | viena patikra dabar, nieko nevykdo |
 | `evaluate TSLA` | viena akcija per grandinę |
@@ -117,16 +117,26 @@ Su 40 akcijų backtest trunka apie 15–30 min.
 python -m tradingbot sweep --dashboard
 ```
 
-Paleidžia 6 variantus vienu metu keliais procesoriaus branduoliais:
+Per kelias sekundes palygina 24 variantus:
 
-- `or-mid` stop su 1R, 1.5R ir 2R target;
-- `or-low` stop su 1R target;
-- 1R ir 2R target su uždarymu 12:00.
+- stop: `or-mid` arba `or-low`;
+- target: 1R, 1.5R, 2R arba 3R;
+- uždarymas: 11:00, 12:30 arba 15:55.
 
 Rezultatų lentelė, surikiuota pagal vidutinį R, rodoma pulto skirtuke
-„Sandoriai“ ir faile `runs/sweep/bot/sweep.json`.
+„Sandoriai“.
 
-Savo variantus galite nurodyti taip:
+Tai **greitas režimas**. Jis naudoja tas pačias skills funkcijas (įėjimas,
+stop/target, dydis, rizikos patikra) vienoje programoje, tik be Time Machine ir
+naujienų filtrų. Testas tikrina, kad jis daro tuos pačius sandorius kaip pilnas
+backtest.
+
+Pilną, lėtą palyginimą su Time Machine paleidžia `--full`. Su 40 akcijų tai
+trunka valandas.
+
+Greitas vieno nustatymo backtest: `python -m tradingbot backtest --fast`.
+
+Savo variantai:
 
 ```powershell
 python -m tradingbot sweep --variants "stop=or-mid,target=1R;stop=or-low,target=2R,flat_by=12:00"
@@ -134,10 +144,7 @@ python -m tradingbot sweep --variants "stop=or-mid,target=1R;stop=or-low,target=
 
 Kai uždarymo laikas ankstesnis, nauji įėjimai baigiami 30 min. prieš jį.
 
-Su 40 akcijų vienas variantas trunka ~20 min. Keli variantai vyksta
-lygiagrečiai, todėl iš viso palyginimas užtrunka maždaug 40–60 min.
-
-Geriausias variantas per tas pačias 39 dienas iš dalies yra atsitiktinumas.
+Geriausias variantas per tas pačias dienas iš dalies yra atsitiktinumas.
 Prieš juo pasitikėdami, išbandykite jį kelias savaites paper režimu.
 
 ## Live režimas

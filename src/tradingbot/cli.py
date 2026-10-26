@@ -217,6 +217,8 @@ def cmd_fetch(args) -> int:
 
 def cmd_backtest(args) -> int:
     ws = Path(args.workspace or "runs/backtest")
+    if args.fast:
+        return _backtest_fast(args, ws)
     if args.dashboard:  # up first: the Sandoriai tab follows the backtest day by day
         args.workspace = str(ws)
         _dashboard(args, background=True)
@@ -254,22 +256,73 @@ def cmd_backtest(args) -> int:
     return 0
 
 
+def _print_result(res: dict, ws: Path) -> None:
+    print()
+    print(
+        "Rezultatas %s – %s, %d dienų, %d akc." % (res["from"], res["to"], res["days"], len(res["symbols"]))
+    )
+    win = "%d%%" % round(100 * res["win_rate"]) if res["win_rate"] is not None else "–"
+    r_avg = res["r_avg"] if res["r_avg"] is not None else "–"
+    print(
+        "  sandoriai %d · pelningi %s · rezultatas %s · vidutinis R %s · max kritimas %s"
+        % (res["trades"], win, money(res["pnl"]), r_avg, money(res["max_drawdown"]))
+    )
+    print("  išėjimai: %s" % (", ".join("%s %d" % kv for kv in res["exits"].items()) or "–"))
+    print("Failas: %s" % (ws / "bot" / "backtest.json"))
+
+
+def _backtest_fast(args, ws: Path) -> int:
+    from . import fastbt
+    from .store import BotStore, write_json
+
+    cfg = config_mod.load(_config_path(args) if _config_path(args).is_file() else None)
+    print("Greitas režimas: be Time Machine ir naujienų filtrų.")
+    data = fastbt.load(Path(args.history), _symbols(args.symbols))
+    if not data:
+        raise ValueError("no history in %s: run `tradingbot fetch` first" % args.history)
+    res = fastbt.run(cfg, data, days=args.days)
+    if ws.exists():
+        shutil.rmtree(ws)
+    store = BotStore(ws)
+    for t in res.pop("list"):
+        store.add_trade(t)
+    write_json(store.dir / "backtest.json", {**res, "status": "done", "done": res["days"]})
+    _print_result(res, ws)
+    if args.dashboard:
+        args.workspace = str(ws)
+        print("Pultas veikia, kol paspausite Ctrl+C.")
+        _dashboard(args, background=False)
+    return 0
+
+
 def cmd_sweep(args) -> int:
     root = Path(args.workspace or "runs/sweep")
-    texts = [t for t in (args.variants or "").split(";") if t.strip()] or sweep.DEFAULT_VARIANTS
+    default = sweep.FULL_VARIANTS if args.full else sweep.DEFAULT_VARIANTS
+    texts = [t for t in (args.variants or "").split(";") if t.strip()] or default
     variants = [sweep.parse_variant(t) for t in texts]
     if args.dashboard:  # up first: the Sandoriai tab shows the comparison as it fills in
         args.workspace = str(root)
         _dashboard(args, background=True)
-    res = sweep.run(
-        _config_path(args),
-        Path(args.history),
-        root,
-        variants,
-        symbols=_symbols(args.symbols),
-        days=args.days,
-        workers=args.workers,
-    )
+    if args.full:
+        res = sweep.run(
+            _config_path(args),
+            Path(args.history),
+            root,
+            variants,
+            symbols=_symbols(args.symbols),
+            days=args.days,
+            workers=args.workers,
+        )
+    else:
+        print("Greitas režimas: be Time Machine ir naujienų filtrų. Tikslesniam: --full (lėta).")
+        res = sweep.run_fast(
+            _config_path(args),
+            Path(args.history),
+            root,
+            variants,
+            symbols=_symbols(args.symbols),
+            days=args.days,
+        )
     print()
     row = "%-4s %-40s %8s %8s %11s %8s %10s"
     print(row % ("#", "variantas", "sandor.", "pelning.", "rezultatas", "vid. R", "max krit."))
@@ -360,6 +413,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--symbols", help="comma separated (default: every saved symbol)")
     p.add_argument("--days", type=int, help="only the last N tradable days")
     p.add_argument("--dashboard", action="store_true", help="serve the dashboard over the result afterwards")
+    p.add_argument(
+        "--fast", action="store_true", help="the skills' rules in one process, no Time Machine (seconds)"
+    )
     p.set_defaults(func=cmd_backtest)
     p = sub.add_parser("sweep", parents=[common, web], help="the backtest once per settings variant, ranked")
     p.add_argument("--variants", help='e.g. "stop=or-mid,target=1R;stop=or-low,target=2R,flat_by=12:00"')
@@ -367,6 +423,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--symbols", help="comma separated (default: every saved symbol)")
     p.add_argument("--days", type=int, help="only the last N tradable days")
     p.add_argument("--workers", type=int, help="variants run at once (default: CPU cores - 1)")
+    p.add_argument(
+        "--full", action="store_true", help="every skill as its own program, with the Time Machine (slow)"
+    )
     p.add_argument("--dashboard", action="store_true", help="serve the dashboard while it runs")
     p.set_defaults(func=cmd_sweep)
     p = sub.add_parser(

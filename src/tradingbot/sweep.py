@@ -23,7 +23,15 @@ from . import backtest
 from . import config as config_mod
 from .store import read_json, write_json
 
+# Every stop x target x flat_by: 2 x 4 x 3 = 24 variants, seconds in the fast mode.
 DEFAULT_VARIANTS = [
+    "stop=%s,target=%s,flat_by=%s" % (stop, target, flat)
+    for stop in ("or-mid", "or-low")
+    for target in ("1R", "1.5R", "2R", "3R")
+    for flat in ("11:00", "12:30", "15:55")
+]
+# Six of them for the full (slow) mode.
+FULL_VARIANTS = [
     "stop=or-mid,target=1R",
     "stop=or-mid,target=1.5R",
     "stop=or-mid,target=2R",
@@ -106,12 +114,17 @@ def _snapshot(root: Path, variants: list[dict], status: dict[str, str], errors: 
                 },
             }
         )
+    rank(rows)
+    return {"status": "done" if all(s != "running" for s in status.values()) else "running", "variants": rows}
+
+
+def rank(rows: list[dict]) -> None:
+    """Best average R first (then the most money); variants without a trade have no R and go last."""
     finished = [r for r in rows if r["status"] == "done" and r["r_avg"] is not None]
     finished.sort(key=lambda r: (r["r_avg"], r["pnl"]), reverse=True)
-    for rank, r in enumerate(finished, 1):
-        r["rank"] = rank
+    for n, r in enumerate(finished, 1):
+        r["rank"] = n
     rows.sort(key=lambda r: (r.get("rank") is None, r.get("rank") or 0))
-    return {"status": "done" if all(s != "running" for s in status.values()) else "running", "variants": rows}
 
 
 def run(
@@ -168,3 +181,65 @@ def run(
                     echo("klaida: %s: %s" % (label_of(v), errors[name]))
             write_json(root / "bot" / "sweep.json", _snapshot(root, variants, status, errors))
     return _snapshot(root, variants, status, errors)
+
+
+def run_fast(
+    config_path: Path | None,
+    history_dir: Path,
+    root: Path,
+    variants: list[dict],
+    symbols=None,
+    days: int | None = None,
+    echo=print,
+) -> dict:
+    """Every variant through fastbt, in this process: the data is loaded once."""
+    from . import fastbt
+
+    base = config_mod.load(config_path if config_path and Path(config_path).is_file() else None)
+    names = [name_of(v) for v in variants]
+    if len(set(names)) != len(names):
+        raise ValueError("two variants are the same")
+    data = fastbt.load(Path(history_dir), symbols)
+    if not data:
+        raise ValueError("no history in %s: run `tradingbot fetch` first" % history_dir)
+    root = Path(root)
+    rows = []
+    for i, v in enumerate(variants, 1):
+        row = {"name": name_of(v), "label": label_of(v), "status": "done", "error": None}
+        try:
+            res = fastbt.run(variant_config(base, v), data, days=days)
+            row.update(
+                {
+                    k: res.get(k)
+                    for k in (
+                        "days",
+                        "trades",
+                        "wins",
+                        "win_rate",
+                        "pnl",
+                        "r_avg",
+                        "r_total",
+                        "max_drawdown",
+                        "exits",
+                        "from",
+                        "to",
+                    )
+                }
+            )
+            row["done"] = res["days"]
+        except Exception as exc:  # one broken variant must not lose the others
+            row.update(status="error", error="%s: %s" % (type(exc).__name__, exc))
+        rows.append(row)
+        echo(
+            "%2d/%d %-45s %s"
+            % (
+                i,
+                len(variants),
+                row["label"],
+                row["error"] or "sandoriai %s · vid. R %s" % (row["trades"], row["r_avg"]),
+            )
+        )
+    rank(rows)
+    out = {"status": "done", "mode": "fast", "variants": rows}
+    write_json(root / "bot" / "sweep.json", out)
+    return out
