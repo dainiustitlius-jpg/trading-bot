@@ -129,10 +129,10 @@ galioti).
 
 ## Etapai
 
-1. **Karkasas**: `pyproject.toml`, `SkillRunner`, `workspace`, `clock`,
+1. ✅ **Karkasas**: `pyproject.toml`, `SkillRunner`, `workspace`, `clock`,
    `tradingbot doctor` (patikrina Python versiją, skills, `SEC_USER_AGENT`,
    `trader/config.json`).
-2. **Vieno sandorio grandinė** offline: TSLA 2026-10-19 replay turi duoti tą
+2. ✅ **Vieno sandorio grandinė** offline: TSLA 2026-10-19 replay turi duoti tą
    patį kaip skills README (įėjimas 364.18 10:15, stop 358.32, target 370.04,
    8 akcijos, PASS).
 3. **Paper brokeris + žurnalas**, dienos ataskaita (sandoriai, laimėjimų

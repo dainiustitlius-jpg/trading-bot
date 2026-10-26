@@ -1,3 +1,6 @@
 # day-trader-skill working files (config, portfolio, broker log)
 trader/
 runs/
+config/bot.toml
+__pycache__/
+*.egg-info/
