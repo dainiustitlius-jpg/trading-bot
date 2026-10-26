@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import filters
+from . import bars, filters
 from .config import BotConfig
 from .skills import SkillResult, SkillRunner
 from .workspace import Workspace
@@ -102,6 +102,8 @@ class Pipeline:
     def evaluate(self, symbol: str) -> Evaluation:
         ev = Evaluation(symbol.upper())
         steps = [self._news, self._entry, self._exit, self._timemachine, self._budget, self._risk]
+        if filters.context_wanted(self.cfg.filters):
+            steps.insert(2, self._context)
         if self.skip_news:
             steps = steps[1:]
         for step in steps:
@@ -130,7 +132,10 @@ class Pipeline:
         return Step("news", check.ok, summary, check.warnings + res.data.get("notes", []), res.data)
 
     def _entry(self, ev: Evaluation) -> Step:
-        res = self.runner.run("entry", "check", ev.symbol, "--write")
+        args = ["check", ev.symbol, "--write"]
+        if self.cfg.filters.min_volume_x:
+            args += ["--min-volume-x", str(self.cfg.filters.min_volume_x)]
+        res = self.runner.run("entry", *args)
         d = res.data
         if not isinstance(d, dict):
             return _failed("entry", res)
@@ -148,6 +153,37 @@ class Pipeline:
             "triggered %s at %s (range high %s)" % (trig.get("time"), trig.get("price"), d.get("level")),
             data=d,
         )
+
+    def _context(self, ev: Evaluation) -> Step:
+        """Gap, 20-day average and the market's direction, the same rules as the backtests."""
+        f = self.cfg.filters
+        entry = next(s for s in ev.steps if s.name == "entry").data
+        now = self.runner.clock.now()
+        offline = self.runner.replay.path("charts") if self.runner.replay else None
+        ctx: dict = {
+            "price": (entry.get("trigger") or {}).get("price"),
+            "prev_close": entry.get("prev_close"),
+        }
+        try:
+            if f.max_gap_pct:
+                today = [
+                    b
+                    for b in bars.parse_chart(bars.day_chart(ev.symbol, offline))
+                    if b.start.date() == now.date()
+                ]
+                ctx["open"] = today[0].open if today else None
+            if f.above_ma20:
+                ctx["ma20"] = filters.average(bars.daily_closes(ev.symbol, now.date(), offline))
+            if f.market_up:
+                chart = bars.day_chart(f.market_symbol, offline)
+                done = [b for b in bars.parse_chart(chart) if b.start.date() == now.date() and b.end <= now]
+                pc = bars.prev_close(chart)
+                ctx["market_pct"] = 100.0 * (done[-1].close / pc - 1) if done and pc else None
+        except (bars.BarsError, KeyError, IndexError, ValueError) as exc:
+            return Step("context", False, "no data for the setup filters: %s" % exc)
+        check = filters.check_context(ctx, f)
+        summary = "; ".join(check.reasons) if check.reasons else "setup filters pass"
+        return Step("context", check.ok, summary, check.warnings, ctx)
 
     def _exit(self, ev: Evaluation) -> Step:
         p = self.cfg.plan

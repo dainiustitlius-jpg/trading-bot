@@ -23,6 +23,16 @@ from .store import write_json
 WARMUP = 20
 
 
+def t_stat(rs: list[float]) -> float | None:
+    """Average R over its standard error. Under about 2 the average could well be luck."""
+    n = len(rs)
+    if n < 3:
+        return None
+    mean = sum(rs) / n
+    var = sum((r - mean) ** 2 for r in rs) / (n - 1)
+    return round(mean / (var**0.5 / n**0.5), 2) if var > 0 else None
+
+
 def summarize(trades: list[dict], budget: float) -> dict:
     n = len(trades)
     wins = [t for t in trades if t["pnl"] > 0]
@@ -43,6 +53,7 @@ def summarize(trades: list[dict], budget: float) -> dict:
         "pnl": pnl,
         "r_total": round(sum(rs), 2),
         "r_avg": round(sum(rs) / len(rs), 3) if rs else None,
+        "r_t": t_stat(rs),
         "max_drawdown": round(max_dd, 2),
         "end_equity": round(budget + pnl, 2),
         "exits": reasons,

@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .clock import NY
@@ -58,10 +58,15 @@ def parse_chart(data: dict) -> list[Bar]:
     return bars
 
 
-def _fetch(symbol: str, timeout: float = 20) -> dict:
+def _fetch(symbol: str, timeout: float = 20, range_: str = "1d", interval: str = "5m") -> dict:
     last = None
     for host in HOSTS:
-        url = "%s/v8/finance/chart/%s?range=1d&interval=5m" % (host, symbol.upper().replace(".", "-"))
+        url = "%s/v8/finance/chart/%s?range=%s&interval=%s" % (
+            host,
+            symbol.upper().replace(".", "-"),
+            range_,
+            interval,
+        )
         req = urllib.request.Request(url, headers={"User-Agent": UA})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -72,14 +77,49 @@ def _fetch(symbol: str, timeout: float = 20) -> dict:
     raise BarsError("Yahoo chart for %s: %s" % (symbol, last))
 
 
+def _offline(offline_dir: Path, name: str) -> dict:
+    for candidate in (name, name + ".gz"):
+        path = Path(offline_dir) / candidate
+        if path.is_file():
+            raw = path.read_bytes()
+            if candidate.endswith(".gz"):
+                import gzip
+
+                raw = gzip.decompress(raw)
+            return json.loads(raw.decode("utf-8"))
+    raise BarsError("no offline chart %s" % (Path(offline_dir) / name))
+
+
+def day_chart(symbol: str, offline_dir: Path | None = None) -> dict:
+    return _offline(offline_dir, "%s.json" % symbol.upper()) if offline_dir is not None else _fetch(symbol)
+
+
 def closed_bars(symbol: str, now: datetime, offline_dir: Path | None = None) -> list[Bar]:
     """Today's bars that have closed by `now` (New York)."""
-    if offline_dir is not None:
-        path = Path(offline_dir) / ("%s.json" % symbol.upper())
-        if not path.is_file():
-            raise BarsError("no offline chart %s" % path)
-        data = json.loads(path.read_text(encoding="utf-8"))
-    else:
-        data = _fetch(symbol)
     day = now.date()
-    return [b for b in parse_chart(data) if b.start.date() == day and b.end <= now]
+    return [b for b in parse_chart(day_chart(symbol, offline_dir)) if b.start.date() == day and b.end <= now]
+
+
+def prev_close(chart: dict) -> float | None:
+    meta = (chart.get("chart", {}).get("result") or [{}])[0].get("meta", {})
+    v = meta.get("previousClose") or meta.get("chartPreviousClose")
+    return float(v) if v else None
+
+
+def daily_closes(symbol: str, before: date, offline_dir: Path | None = None) -> list[float]:
+    """Daily closes before `before`, oldest first: Yahoo's daily chart, or the last 5-minute bar of
+    each saved day in a replay (<SYM>-60d5m.json)."""
+    if offline_dir is not None:
+        data = _offline(offline_dir, "%s-60d5m.json" % symbol.upper())
+        last: dict = {}
+        for b in parse_chart(data):
+            last[b.start.date()] = b.close
+        return [last[d] for d in sorted(last) if d < before]
+    data = _fetch(symbol, range_="3mo", interval="1d")
+    res = data["chart"]["result"][0]
+    closes = res["indicators"]["quote"][0]["close"]
+    out = []
+    for ts, c in zip(res.get("timestamp") or [], closes, strict=False):
+        if c is not None and datetime.fromtimestamp(ts, NY).date() < before:
+            out.append(float(c))
+    return out

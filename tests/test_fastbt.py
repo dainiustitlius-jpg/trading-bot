@@ -44,7 +44,11 @@ class FastSweep(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             variants = [sweep.parse_variant(t) for t in sweep.DEFAULT_VARIANTS]
             res = sweep.run_fast(None, HIST, Path(tmp) / "sw", variants, echo=lambda *_: None)
-            self.assertEqual(len(res["variants"]), 24)
+            self.assertEqual(len(res["variants"]), 96)
+            # one stock over 39 days gives every variant fewer than 20 trades: none is ranked
+            self.assertTrue(all(r["few"] for r in res["variants"]))
+            self.assertNotIn("rank", res["variants"][0])
+            sweep.rank(res["variants"], min_trades=1)
             self.assertEqual(res["variants"][0]["rank"], 1)
             self.assertTrue((Path(tmp) / "sw" / "bot" / "sweep.json").is_file())
 

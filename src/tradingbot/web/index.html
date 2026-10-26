@@ -155,7 +155,7 @@ tr:last-child td { border-bottom: 0; }
     var m = String(iso).match(/T(\d\d:\d\d)/); return m ? m[1] : String(iso);
   }
   function pct(x) { return (100 * x).toFixed(1) + "%"; }
-  var STEP = { news: "Naujienos", entry: "Įėjimas", exit: "Stop / target", timemachine: "Time Machine", budget: "Dydis", risk: "Rizika", market: "Rinka", scan: "Skeneris" };
+  var STEP = { news: "Naujienos", entry: "Įėjimas", context: "Kontekstas", exit: "Stop / target", timemachine: "Time Machine", budget: "Dydis", risk: "Rizika", market: "Rinka", scan: "Skeneris" };
 
   // ---- tabs
   var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
@@ -310,11 +310,13 @@ tr:last-child td { border-bottom: 0; }
     if (!sw) return "";
     var exits = function (e) { return Object.keys(e || {}).map(function (k) { return k + " " + e[k]; }).join(", "); };
     return '<section class="panel"><div class="head"><h2>Nustatymų palyginimas</h2><span class="small' + (sw.status === "running" ? '" style="color:var(--orange)">Vyksta' : ' muted">Baigta') + ' · surikiuota pagal vidutinį R</span></div>' +
-      '<div class="table-box"><table><thead><tr><th scope="col">#</th><th scope="col">Variantas</th><th scope="col">Sandoriai</th><th scope="col">Pelningi</th><th scope="col">Rezultatas</th><th scope="col">Vid. R</th><th scope="col">Max kritimas</th><th scope="col">Išėjimai</th></tr></thead><tbody>' +
-      sw.variants.map(function (r) {
-        if (r.status !== "done") return '<tr><td></td><td>' + esc(r.label) + '</td><td colspan="6" class="muted">' + esc(r.error || ("vyksta " + (r.done || 0) + (r.days ? " / " + r.days : "") + " d.")) + '</td></tr>';
-        return '<tr><td>' + esc(r.rank) + '</td><td>' + esc(r.label) + '</td><td>' + esc(r.trades) + '</td><td>' + (r.win_rate == null ? "–" : Math.round(100 * r.win_rate) + "%") + '</td><td class="' + cls(r.pnl) + '">' + signed(r.pnl) + '</td><td class="' + cls(r.r_avg) + '">' + esc(r.r_avg == null ? "–" : r.r_avg) + '</td><td>' + money(r.max_drawdown) + '</td><td>' + esc(exits(r.exits)) + '</td></tr>';
-      }).join("") + '</tbody></table></div><p class="xs muted" style="margin:0">Geriausias iš kelių variantų per tas pačias dienas iš dalies yra atsitiktinumas. Prieš pasitikėdami, išbandykite jį paper režimu.</p></section>';
+      '<div class="table-box"><table><thead><tr><th scope="col">#</th><th scope="col">Variantas</th><th scope="col">Sandoriai</th><th scope="col">Pelningi</th><th scope="col">Rezultatas</th><th scope="col">Vid. R</th><th scope="col">t</th><th scope="col">Max kritimas</th><th scope="col">Išėjimai</th></tr></thead><tbody>' +
+      sw.variants.map(function (r, i) {
+        if (r.status !== "done") return '<tr><td></td><td>' + esc(r.label) + '</td><td colspan="7" class="muted">' + esc(r.error || ("vyksta " + (r.done || 0) + (r.days ? " / " + r.days : "") + " d.")) + '</td></tr>';
+        var sep = r.few && !(i && sw.variants[i - 1].few) ? '<tr><td colspan="9" class="muted" style="font-family:var(--sans)">Mažiau nei 20 sandorių: per mažai išvadoms</td></tr>' : "";
+        var strong = r.r_t != null && Math.abs(r.r_t) >= 2;
+        return sep + '<tr' + (r.few ? ' class="muted"' : "") + '><td>' + esc(r.rank) + '</td><td style="font-family:var(--sans)">' + esc(r.label) + '</td><td>' + esc(r.trades) + '</td><td>' + (r.win_rate == null ? "–" : Math.round(100 * r.win_rate) + "%") + '</td><td class="' + cls(r.pnl) + '">' + signed(r.pnl) + '</td><td class="' + cls(r.r_avg) + '">' + esc(r.r_avg == null ? "–" : r.r_avg) + '</td><td' + (strong ? ' style="font-weight:700"' : "") + '>' + esc(r.r_t == null ? "–" : r.r_t) + '</td><td>' + money(r.max_drawdown) + '</td><td>' + esc(exits(r.exits)) + '</td></tr>';
+      }).join("") + '</tbody></table></div><p class="xs muted" style="margin:0">t = vidutinis R padalytas iš jo paklaidos: kai |t| mažiau nei 2, rezultatas gali būti atsitiktinis. Geriausias iš daugelio variantų per tas pačias dienas iš dalies yra atsitiktinumas: prieš pasitikėdami, išbandykite jį paper režimu.</p></section>';
   }
 
   function renderTrades() {
@@ -355,7 +357,10 @@ tr:last-child td { border-bottom: 0; }
       TAGS.map(function (t) { return '<label><input type="checkbox" data-tag="' + t + '"' + (F.block_news_tags.indexOf(t) >= 0 ? " checked" : "") + '> <span class="mono">' + t + '</span></label>'; }).join("") + '</div></fieldset>' +
       '<div class="checks"><label><input type="checkbox" id="imp"' + (F.block_important_filings ? " checked" : "") + '> Praleisti po svarbaus 8-K pranešimo</label></div><div class="fields">' +
       '<div class="field"><label for="age">Pramušimas ne senesnis nei (min.)</label><input id="age" type="text" value="' + esc(s.scan.max_trigger_age_minutes) + '"></div>' +
-      '<div class="field"><label for="hist">Min. signalų istorijoje (60 d.)</label><input id="hist" type="text" value="' + esc(F.min_history_triggers) + '"></div></div></section></div>' +
+      '<div class="field"><label for="hist">Min. signalų istorijoje (60 d.)</label><input id="hist" type="text" value="' + esc(F.min_history_triggers) + '"></div>' +
+      '<div class="field"><label for="volx">Pramušimo apyvarta ≥ (× intervalo vid., 0 = išj.)</label><input id="volx" type="text" value="' + esc(F.min_volume_x) + '"></div>' +
+      '<div class="field"><label for="gap">Maks. gap % (0 = išj.)</label><input id="gap" type="text" value="' + esc(F.max_gap_pct) + '"></div></div>' +
+      '<div class="checks"><label><input type="checkbox" id="mkt"' + (F.market_up ? " checked" : "") + '> Tik kai ' + esc(F.market_symbol) + ' kyla</label><label><input type="checkbox" id="ma20"' + (F.above_ma20 ? " checked" : "") + '> Tik virš 20 dienų vidurkio</label></div></section></div>' +
       '<section class="panel"><div><h2>Pranešimai</h2><div class="small muted">Telegram žetonas ir SMTP slaptažodis įrašomi tik aplinkos kintamuosiuose TELEGRAM_BOT_TOKEN ir SMTP_PASSWORD. Patikrinti: python -m tradingbot notify-test</div></div><div class="fields">' +
       [["ntfy_topic", "ntfy tema (telefono programėlė)"], ["telegram_chat_id", "Telegram chat ID"], ["email_to", "El. paštas"], ["smtp_host", "SMTP serveris"], ["smtp_user", "SMTP vartotojas"]].map(function (f) { return '<div class="field"><label for="n-' + f[0] + '">' + f[1] + '</label><input id="n-' + f[0] + '" type="text" data-notify="' + f[0] + '" value="' + esc(s.notify[f[0]]) + '"></div>'; }).join("") +
       '</div><fieldset><legend>Apie ką pranešti</legend><div class="checks">' +
@@ -376,7 +381,7 @@ tr:last-child td { border-bottom: 0; }
       paper: { slippage_bps: num($("slip").value, "Slippage") },
       scan: { max_trigger_age_minutes: Math.round(num($("age").value, "Pramušimo amžius")) },
       notify: (function () { var n = { events: Array.prototype.map.call(f.querySelectorAll("[data-event]:checked"), function (c) { return c.dataset.event; }) }; f.querySelectorAll("[data-notify]").forEach(function (i) { n[i.dataset.notify] = i.value.trim(); }); return n; })(),
-      filters: { block_news_tags: Array.prototype.map.call(f.querySelectorAll("[data-tag]:checked"), function (c) { return c.dataset.tag; }), block_important_filings: $("imp").checked, min_history_triggers: Math.round(num($("hist").value, "Min. signalų")) }
+      filters: { block_news_tags: Array.prototype.map.call(f.querySelectorAll("[data-tag]:checked"), function (c) { return c.dataset.tag; }), block_important_filings: $("imp").checked, min_history_triggers: Math.round(num($("hist").value, "Min. signalų")), min_volume_x: num($("volx").value, "Apyvarta"), max_gap_pct: num($("gap").value, "Gap"), market_up: $("mkt").checked, above_ma20: $("ma20").checked }
     };
   }
 

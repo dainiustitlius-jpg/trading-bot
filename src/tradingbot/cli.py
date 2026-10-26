@@ -196,8 +196,8 @@ def cmd_dashboard(args) -> int:
 
 DEFAULT_SYMBOLS = (
     "AAPL MSFT NVDA AMZN GOOGL META TSLA AMD AVGO NFLX JPM BAC XOM CVX WMT COST KO PEP UNH LLY "
-    "JNJ PFE MRK V MA DIS INTC CSCO ORCL CRM ADBE QCOM MU PLTR UBER BA CAT GE F GM"
-).split()
+    "JNJ PFE MRK V MA DIS INTC CSCO ORCL CRM ADBE QCOM MU PLTR UBER BA CAT GE F GM SPY"
+).split()  # SPY: the market gauge for the market_up filter, never traded
 
 
 def _symbols(text: str | None) -> list[str] | None:
@@ -324,14 +324,19 @@ def cmd_sweep(args) -> int:
             days=args.days,
         )
     print()
-    row = "%-4s %-40s %8s %8s %11s %8s %10s"
-    print(row % ("#", "variantas", "sandor.", "pelning.", "rezultatas", "vid. R", "max krit."))
+    row = "%-4s %-62s %7s %7s %11s %7s %6s %10s"
+    print(row % ("#", "variantas", "sandor.", "pelng.", "rezultatas", "vid. R", "t", "max krit."))
+    shown_few = False
     for r in res["variants"]:
         if r["status"] != "done":
-            print("     %-40s %s" % (r["label"], r.get("error") or r["status"]))
+            print("     %-62s %s" % (r["label"], r.get("error") or r["status"]))
             continue
+        if r.get("few") and not shown_few:
+            print("--- mažiau nei %d sandorių: per mažai išvadoms ---" % sweep.MIN_TRADES)
+            shown_few = True
         win = "%d%%" % round(100 * r["win_rate"]) if r["win_rate"] is not None else "–"
         r_avg = r["r_avg"] if r["r_avg"] is not None else "–"
+        t = r.get("r_t") if r.get("r_t") is not None else "–"
         print(
             row
             % (
@@ -341,9 +346,11 @@ def cmd_sweep(args) -> int:
                 win,
                 money(r["pnl"]),
                 r_avg,
+                t,
                 money(r["max_drawdown"]),
             )
         )
+    print("t: vidutinis R / jo paklaida. Kai |t| < 2, rezultatas gali būti atsitiktinis.")
     print("Failas: %s" % (root / "bot" / "sweep.json"))
     if args.dashboard:
         print("Palyginimas baigtas. Pultas veikia, kol paspausite Ctrl+C.")

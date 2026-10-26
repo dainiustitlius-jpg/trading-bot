@@ -18,6 +18,12 @@ block_news_tags = ["halt", "legal", "regulatory", "risk"]
 block_important_filings = true          # 8-K items like 2.02, 5.02, 4.02, 1.03
 block_verdicts = ["toward the stop"]    # Time Machine verdicts that skip the trade
 min_history_triggers = 10               # the rule must have fired this often in 60 days
+# Setup filters (0 / false = off). Compare them first: python -m tradingbot sweep
+min_volume_x = 0        # breakout bar volume vs the opening range's average, e.g. 1.5
+market_up = false       # only when SPY is above yesterday's close
+market_symbol = "SPY"
+above_ma20 = false      # only when the price is above its 20-day average
+max_gap_pct = 0         # skip a stock that opened more than this % above yesterday's close
 
 # Written into trader/config.json for the skills (trader-budget, trader-risk, ...).
 # Anything left out keeps trader-budget's config.example.json value.

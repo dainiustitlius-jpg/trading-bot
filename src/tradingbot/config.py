@@ -29,6 +29,12 @@ class FilterSettings:
     block_important_filings: bool = True
     block_verdicts: list[str] = field(default_factory=lambda: ["toward the stop"])
     min_history_triggers: int = 10
+    # Setup filters (0 / false = off). The same rules run in the bot and in the backtests.
+    min_volume_x: float = 0.0  # the breakout bar's volume vs the opening range's average (trader-entry)
+    market_up: bool = False  # only when market_symbol is above yesterday's close at the entry
+    market_symbol: str = "SPY"
+    above_ma20: bool = False  # only when the price is above its 20-day average of daily closes
+    max_gap_pct: float = 0.0  # skip a stock that opened more than this % above yesterday's close
 
 
 @dataclass

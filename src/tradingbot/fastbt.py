@@ -24,6 +24,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 from . import config as config_mod
+from . import filters
 from .backtest import WARMUP, summarize
 from .bars import Bar
 from .clock import NY
@@ -54,10 +55,12 @@ def _utc(local: datetime) -> datetime:
 class DayData:
     """One symbol, one session: raw bars for trader-entry and Bar objects for the paper broker."""
 
-    def __init__(self, symbol: str, raw: list[dict], prev_close):
+    def __init__(self, symbol: str, raw: list[dict], prev_close, closes_before: list[float] | None = None):
         self.symbol = symbol
         self.raw = raw
         self.prev_close = prev_close
+        self.closes_before = closes_before or []  # the daily closes before this day, oldest first
+        self.cache: dict = {}
         self.bars = [
             Bar(datetime.fromtimestamp(b["t"], NY), b["o"], b["h"], b["l"], b["c"])
             for b in raw
@@ -111,10 +114,12 @@ def load(history_dir: Path, symbols: list[str] | None = None) -> dict[date, dict
                     "v": int(v or 0),
                 }
             )
-        prev = None
+        closes: list[float] = []
         for d in sorted(by_day):
-            out.setdefault(d, {})[sym.upper()] = DayData(sym.upper(), by_day[d], prev)
-            prev = by_day[d][-1]["c"]
+            out.setdefault(d, {})[sym.upper()] = DayData(
+                sym.upper(), by_day[d], closes[-1] if closes else None, closes[-40:]
+            )
+            closes.append(by_day[d][-1]["c"])
     return out
 
 
@@ -161,15 +166,32 @@ def simulate_day(
     # Every symbol's first close above its opening range: it does not depend on the hour asked.
     triggers = []
     ask = _utc(cutoff + timedelta(minutes=5))
+    f = cfg.filters
+    market = data.get(f.market_symbol.upper())
     for sym, dd in data.items():
-        res = entry_mod.evaluate(dd.chart(), ask, cfg=entry_cfg)
+        if sym == f.market_symbol.upper():
+            continue  # the market gauge (an ETF) is not traded
+        key = (ask, f.min_volume_x, tuple(sorted(entry_cfg.items())))
+        res = dd.cache.get(key)
+        if res is None:  # the same day is asked again by every variant of a sweep
+            res = dd.cache[key] = entry_mod.evaluate(
+                dd.chart(), ask, cfg=entry_cfg, min_volume_x=f.min_volume_x or None
+            )
         if res.get("status") != "triggered":
             continue
         tr = res["trigger"]
         end = datetime.combine(day, time.fromisoformat(tr["close_time"]), NY)
         if tr["price"] < min_price:
             continue
-        triggers.append({"symbol": sym, "end": end, "price": tr["price"], "or": res["opening_range"]})
+        ctx = {
+            "price": tr["price"],
+            "open": dd.raw[0]["o"],
+            "prev_close": dd.prev_close,
+            "ma20": filters.average(dd.closes_before),
+        }
+        triggers.append(
+            {"symbol": sym, "end": end, "price": tr["price"], "or": res["opening_range"], "ctx": ctx}
+        )
 
     state = {"orders": []}
     trades, pos, traded = [], None, set()
@@ -199,6 +221,10 @@ def simulate_day(
             fresh = [tr for tr in triggers if tr["symbol"] not in traded and t - max_age <= tr["end"] <= t]
             fresh.sort(key=lambda tr: (tr["end"], data[tr["symbol"]].dollar_volume(t)), reverse=True)
             for tr in fresh:
+                if filters.context_wanted(f):  # measured at the tick, as the bot does
+                    ctx = {**tr["ctx"], "market_pct": _market_pct(market, t)}
+                    if not filters.check_context(ctx, f).ok:
+                        continue
                 pos = _try_entry(
                     tr,
                     t,
@@ -220,6 +246,14 @@ def simulate_day(
                     break
         t += timedelta(minutes=5)
     return trades, cash
+
+
+def _market_pct(market: DayData | None, at: datetime) -> float | None:
+    """The market gauge's move from yesterday's close to its last bar closed by `at`, in %."""
+    if market is None or not market.prev_close:
+        return None
+    done = [b for b in market.bars if b.end <= at]
+    return 100.0 * (done[-1].close / market.prev_close - 1) if done else None
 
 
 def _try_entry(

@@ -70,7 +70,7 @@ Store, rašykite `py` vietoj `python`.
 | `replay --date D --data DIR --workspace W` | viena išsaugota diena su fiksuotu laikrodžiu (`--start`, `--end`, `--dashboard`) |
 | `fetch` | atsisiunčia 60 dienų 5 min. barus backtest'ui (`--symbols`, numatyta 40 likvidžių JAV akcijų) |
 | `backtest` | visas botas per išsaugotas dienas (`--fast` per sekundes, `--days`, `--symbols`, `--dashboard`) |
-| `sweep` | 24 stop/target/uždarymo variantai per kelias sekundes, surikiuota (`--variants`, `--full`, `--dashboard`) |
+| `sweep` | 96 stop/target/uždarymo/filtrų variantai per kelias sekundes, surikiuota (`--variants`, `--full`, `--dashboard`) |
 | `notify-test` | bandomasis pranešimas visais sukonfigūruotais kanalais |
 | `pass` | viena patikra dabar, nieko nevykdo |
 | `evaluate TSLA` | viena akcija per grandinę |
@@ -114,37 +114,47 @@ Su 40 akcijų backtest trunka apie 15–30 min.
 ## Nustatymų palyginimas
 
 ```powershell
+python -m tradingbot fetch
 python -m tradingbot sweep --dashboard
 ```
 
-Per kelias sekundes palygina 24 variantus:
+`fetch` reikia paleisti iš naujo, kad atsisiųstų ir SPY (rinkos filtrui).
 
-- stop: `or-mid` arba `or-low`;
-- target: 1R, 1.5R, 2R arba 3R;
-- uždarymas: 11:00, 12:30 arba 15:55.
+`sweep` per kelias sekundes palygina 96 variantus:
 
-Rezultatų lentelė, surikiuota pagal vidutinį R, rodoma pulto skirtuke
-„Sandoriai“.
+| Kas keičiama | Variantai |
+| --- | --- |
+| stop | `or-low`, `or-mid` |
+| target | 1R, 2R, 3R |
+| uždarymas | 11:00, 15:55 |
+| filtras: apyvarta | pramušimo baro apyvarta ≥ 1.5× intervalo vidurkio |
+| filtras: rinka | tik kai SPY kyla |
+| filtras: tendencija | tik akcijos virš 20 dienų vidurkio |
 
-Tai **greitas režimas**. Jis naudoja tas pačias skills funkcijas (įėjimas,
-stop/target, dydis, rizikos patikra) vienoje programoje, tik be Time Machine ir
-naujienų filtrų. Testas tikrina, kad jis daro tuos pačius sandorius kaip pilnas
-backtest.
+Kiekvienas filtras bandomas įjungtas ir išjungtas.
 
-Pilną, lėtą palyginimą su Time Machine paleidžia `--full`. Su 40 akcijų tai
-trunka valandas.
+Lentelė rodoma pulto skirtuke „Sandoriai“:
 
-Greitas vieno nustatymo backtest: `python -m tradingbot backtest --fast`.
+- **Kas reitinguojama.** Tik variantai su bent 20 sandorių, surikiuoti pagal
+  vidutinį R. Mažesni pavyzdžiai rodomi atskirai, be reitingo.
+- **Stulpelis t** rodo vidutinį R, padalytą iš jo paklaidos. Kai |t| < 2,
+  rezultatas gali būti atsitiktinis.
 
-Savo variantai:
+Filtrus galima naudoti ir tikrame bote: nustatymuose (pulte) arba `[filters]` skiltyje
+(`min_volume_x`, `market_up`, `above_ma20`, `max_gap_pct`). Bote ir backtest'e
+veikia tos pačios taisyklės.
+
+Tai **greitas režimas**: tos pačios skills funkcijos vienoje programoje, be
+Time Machine ir naujienų filtrų. Testas tikrina, kad jis daro tuos pačius
+sandorius kaip pilnas backtest. Pilnas, lėtas palyginimas: `--full`.
+
+Savo variantai (raktai `stop`, `target`, `flat_by`, `vol`, `market`, `ma20`, `gap`):
 
 ```powershell
-python -m tradingbot sweep --variants "stop=or-mid,target=1R;stop=or-low,target=2R,flat_by=12:00"
+python -m tradingbot sweep --variants "stop=or-low,target=2R,flat_by=11:00,vol=2,market=on;stop=or-low,target=2R,gap=1"
 ```
 
-Kai uždarymo laikas ankstesnis, nauji įėjimai baigiami 30 min. prieš jį.
-
-Geriausias variantas per tas pačias dienas iš dalies yra atsitiktinumas.
+Geriausias iš 96 variantų per tas pačias dienas iš dalies yra atsitiktinumas.
 Prieš juo pasitikėdami, išbandykite jį kelias savaites paper režimu.
 
 ## Live režimas

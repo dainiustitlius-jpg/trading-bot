@@ -98,3 +98,55 @@ def check_timemachine(tm: dict, settings: FilterSettings) -> Check:
         )
     check.warnings.extend(tm.get("verdict_notes") or [])
     return check
+
+
+def context_wanted(settings: FilterSettings) -> bool:
+    return bool(settings.market_up or settings.above_ma20 or settings.max_gap_pct)
+
+
+def check_context(ctx: dict, settings: FilterSettings) -> Check:
+    """The setup filters, from numbers the caller measured at the entry:
+
+    price        the entry price
+    open, prev_close   today's first open and yesterday's close (the gap)
+    ma20         the average of the 20 daily closes before today
+    market_pct   the market symbol's move from yesterday's close to the entry, in %
+    A missing number fails its filter: no data is no evidence.
+    """
+    check = Check(ok=True)
+
+    def fail(text: str) -> None:
+        check.ok = False
+        check.reasons.append(text)
+
+    if settings.max_gap_pct:
+        o, pc = ctx.get("open"), ctx.get("prev_close")
+        if not o or not pc:
+            fail("no open or previous close for the gap")
+        else:
+            gap = 100.0 * (o / pc - 1)
+            if gap > settings.max_gap_pct:
+                fail("opened %+.2f%% over yesterday's close (max %g%%)" % (gap, settings.max_gap_pct))
+            else:
+                check.warnings.append("gap %+.2f%%" % gap)
+    if settings.above_ma20:
+        ma, price = ctx.get("ma20"), ctx.get("price")
+        if not ma or not price:
+            fail("no 20-day average")
+        elif price <= ma:
+            fail("price %.2f is not above its 20-day average %.2f" % (price, ma))
+        else:
+            check.warnings.append("%.2f%% over the 20-day average" % (100.0 * (price / ma - 1)))
+    if settings.market_up:
+        mp = ctx.get("market_pct")
+        if mp is None:
+            fail("no %s price" % settings.market_symbol)
+        elif mp <= 0:
+            fail("%s is %+.2f%% on the day" % (settings.market_symbol, mp))
+        else:
+            check.warnings.append("%s %+.2f%%" % (settings.market_symbol, mp))
+    return check
+
+
+def average(closes: list[float], n: int = 20) -> float | None:
+    return sum(closes[-n:]) / n if len(closes) >= n else None
