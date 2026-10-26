@@ -19,7 +19,7 @@ tradingbot = "tradingbot.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-tradingbot = ["web/*.html"]
+tradingbot = ["web/*.html", "web/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -15,18 +15,22 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
+from . import bars, chartdata
 from . import config as config_mod
 from .store import BotStore, read_json
 from .workspace import Workspace
 
 WEB = Path(__file__).resolve().parent / "web" / "index.html"
+VENDOR = {"/vendor/lightweight-charts.js": WEB.parent / "vendor" / "lightweight-charts-4.2.0.js"}
 
 
 class Dashboard:
-    def __init__(self, config_path: str | Path, workspace: str | None = None):
+    def __init__(self, config_path: str | Path, workspace: str | None = None, charts_dir: Path | None = None):
         self.config_path = Path(config_path)
         self.workspace_override = workspace
+        self.charts_dir = charts_dir  # a replay's saved charts; None = Yahoo
 
     def _load(self) -> tuple[config_mod.BotConfig, Workspace, BotStore]:
         cfg = config_mod.load(self.config_path if self.config_path.is_file() else None)
@@ -93,6 +97,12 @@ class Dashboard:
         data = asdict(cfg)
         data["limits"] = {**limits, **cfg.limits}
         return data
+
+    # -- GET /api/chart -------------------------------------------------------
+
+    def chart(self, symbol: str, interval: str) -> dict:
+        _, _, store = self._load()
+        return chartdata.build(symbol.upper(), interval, store, self.charts_dir)
 
     # -- POST /api/settings --------------------------------------------------
 
@@ -162,10 +172,22 @@ def make_handler(dash: Dashboard):
             )
 
         def do_GET(self) -> None:
-            if self.path in ("/", "/index.html"):
+            url = urlsplit(self.path)
+            if url.path in ("/", "/index.html"):
                 self._send(200, WEB.read_bytes(), "text/html; charset=utf-8")
-            elif self.path == "/api/state":
+            elif url.path == "/api/state":
                 self._json(200, dash.state())
+            elif url.path == "/api/chart":
+                q = parse_qs(url.query)
+                try:
+                    data = dash.chart(q.get("symbol", ["SPY"])[0], q.get("interval", ["5m"])[0])
+                except ValueError as exc:
+                    return self._json(400, {"error": str(exc)})
+                except (bars.BarsError, KeyError, IndexError, OSError) as exc:
+                    return self._json(502, {"error": "no chart data: %s" % exc})
+                self._json(200, data)
+            elif url.path in VENDOR:
+                self._send(200, VENDOR[url.path].read_bytes(), "text/javascript; charset=utf-8")
             else:
                 self._json(404, {"error": "not found"})
 

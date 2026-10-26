@@ -147,7 +147,8 @@ def _replay(args) -> ReplayData | None:
 
 
 def _dashboard(args, background: bool):
-    dash = Dashboard(_config_path(args), args.workspace)
+    charts = Path(args.data).resolve() / "charts" if getattr(args, "data", None) else None
+    dash = Dashboard(_config_path(args), args.workspace, charts_dir=charts)
     httpd = serve(dash, args.host, args.port, background=True)
     print("Pultas: http://%s:%d  (Ctrl+C sustabdo)" % (args.host, args.port), flush=True)
     if not background:

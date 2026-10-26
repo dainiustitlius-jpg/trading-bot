@@ -97,6 +97,7 @@ tr:last-child td { border-bottom: 0; }
   <div role="tablist" aria-label="Ekranai">
     <button role="tab" id="t-today" aria-controls="p-today" aria-selected="true">Šiandien</button>
     <button role="tab" id="t-cand" aria-controls="p-cand" aria-selected="false" tabindex="-1">Kandidatai</button>
+    <button role="tab" id="t-chart" aria-controls="p-chart" aria-selected="false" tabindex="-1">Grafikas</button>
     <button role="tab" id="t-trades" aria-controls="p-trades" aria-selected="false" tabindex="-1">Sandoriai</button>
     <button role="tab" id="t-set" aria-controls="p-set" aria-selected="false" tabindex="-1">Nustatymai</button>
   </div>
@@ -120,6 +121,24 @@ tr:last-child td { border-bottom: 0; }
   <div id="cand"></div>
 </section>
 
+<section role="tabpanel" id="p-chart" aria-labelledby="t-chart" class="stack" hidden>
+  <section class="panel" aria-label="Grafiko nustatymai">
+    <form id="chart-form" class="row" style="align-items:flex-end;gap:12px" novalidate>
+      <div class="field" style="flex:0 1 160px"><label for="c-sym">Akcija</label><input id="c-sym" type="text" autocomplete="off" spellcheck="false" style="text-transform:uppercase"></div>
+      <fieldset style="flex:0 0 auto"><legend>Intervalas</legend><div class="pills" id="c-int"><button type="button" data-int="5m" aria-pressed="true">5 min</button><button type="button" data-int="1d" aria-pressed="false">Dienos</button></div></fieldset>
+      <button type="submit" class="btn primary">Rodyti</button>
+      <span class="small muted" id="c-msg" role="status" aria-live="polite"></span>
+    </form>
+    <fieldset><legend>Indikatoriai</legend><div class="checks" id="c-ind"></div></fieldset>
+  </section>
+  <section class="panel" aria-labelledby="c-title" style="gap:8px">
+    <div class="head"><h2 id="c-title">Grafikas</h2><span class="small muted" id="c-sub"></span></div>
+    <div id="c-main" style="height:460px;position:relative"></div>
+    <div id="c-rsi" style="height:140px;position:relative"></div>
+    <p class="xs muted" style="margin:0">Mėlyna žvakė: kaina kilo, oranžinė: krito. Rodyklės: boto įėjimai ir išėjimai. Brūkšninės linijos: ryto intervalas (OR) ir atviros pozicijos įėjimas, stop, target. RSI: virš 70 perkainuota, žemiau 30 perparduota. Laikas New York. Grafikai: <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts</a>.</p>
+  </section>
+</section>
+
 <section role="tabpanel" id="p-trades" aria-labelledby="t-trades" class="stack" hidden>
   <div id="sweep"></div>
   <div id="backtest"></div>
@@ -134,6 +153,7 @@ tr:last-child td { border-bottom: 0; }
 <p class="xs muted" style="margin: 0">Nemokami Yahoo duomenys yra neoficialūs ir vėluoja. Tai tyrimų įrankis, ne finansinė konsultacija. <span id="ws"></span></p>
 </div>
 
+<script src="/vendor/lightweight-charts.js"></script>
 <script>
 (function () {
   "use strict";
@@ -230,7 +250,7 @@ tr:last-child td { border-bottom: 0; }
         '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 24px"><span style="font-size:32px;font-weight:700">' + esc(pos.symbol) + '</span><span class="mono muted">' + pos.qty + ' akc. × ' + pos.entry.toFixed(2) + '</span><span class="mono">Kaina ' + pos.last_price.toFixed(2) + ' <span class="' + cls(open) + '">' + signed(open) + '</span></span><span class="xs muted mono">' + hm(pos.last_price_at) + ' ET</span></div>' +
         '<div class="ladder" role="img" aria-label="Kaina ' + pos.last_price + ' tarp stop ' + pos.stop + ' ir target ' + pos.target + '"><div class="track" style="background:linear-gradient(90deg,var(--orange) 0 ' + en + '%,var(--blue-strong) ' + en + '% 100%)"></div><div class="entry" style="left:' + en + '%"></div><div class="now" style="left:' + at + '%"></div></div>' +
         '<div class="ladder-labels"><span style="color:var(--orange)">Stop ' + pos.stop.toFixed(2) + '</span><span class="muted" style="text-align:center">Įėjimas ' + pos.entry.toFixed(2) + '<br>' + hm(pos.entry_at) + ' ET</span><span style="color:var(--blue);text-align:right">Target ' + pos.target.toFixed(2) + '</span></div>' +
-        '<div class="inset" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px"><div><div class="small muted">Uždaryti iki</div><div class="mono" style="font-size:17px;font-weight:600">' + esc(pos.flat_by) + ' ET</div></div><button type="button" class="btn" data-act="flatten">Uždaryti dabar</button></div>' +
+        '<div class="inset" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px"><div><div class="small muted">Uždaryti iki</div><div class="mono" style="font-size:17px;font-weight:600">' + esc(pos.flat_by) + ' ET</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" data-chart="' + esc(pos.symbol) + '">Grafikas</button><button type="button" class="btn" data-act="flatten">Uždaryti dabar</button></div></div>' +
         (pos.mode === "live" ? '<p class="small" style="margin:0;color:var(--orange)">Live pozicija: stop-loss ir take-profit laukia brokeryje. Botas tik seka ir praneša; uždaroma per /trader-broker.' + (pos.entry_recorded ? "" : " Įvykdymo kaina dar neįrašyta (ticket.py fill).") + '</p>' : "");
     }
 
@@ -259,7 +279,7 @@ tr:last-child td { border-bottom: 0; }
     var tm = stepOf(ev, "timemachine"), news = stepOf(ev, "news"), bud = stepOf(ev, "budget"), entry = stepOf(ev, "entry");
     html += '<div class="grow-2 stack" style="gap:16px;min-width:0">';
     var sub = entry && entry.data && entry.data.trigger ? esc(entry.data.trigger.time) + " · " + esc(entry.data.trigger.price) : "";
-    html += '<div class="head"><h1 style="font-size:36px">' + esc(ev.symbol) + ' <span class="mono muted" style="font-size:20px;font-weight:500">' + sub + '</span></h1><span class="pill' + (ev.passed ? "" : " stop") + '">' + (ev.passed ? "VISI VARTAI PRAEITI" : "PRALEISTA") + '</span></div>';
+    html += '<div class="head"><h1 style="font-size:36px">' + esc(ev.symbol) + ' <span class="mono muted" style="font-size:20px;font-weight:500">' + sub + '</span></h1><span class="pill' + (ev.passed ? "" : " stop") + '">' + (ev.passed ? "VISI VARTAI PRAEITI" : "PRALEISTA") + '</span><button type="button" class="btn" data-chart="' + esc(ev.symbol) + '">Grafikas</button></div>';
     if (tm && tm.data && tm.data.mc) {
       var mc = tm.data.mc, h = tm.data.history || {};
       var odds = [["Target pirmas", mc.p_target, "var(--blue-strong)"], ["Stop pirmas", mc.p_stop, "var(--orange)"], ["Nei vienas", mc.p_neither, "var(--grey-bar)"], ["Pliuse " + (mc.until || ""), mc.p_green, "var(--blue)"]];
@@ -385,9 +405,86 @@ tr:last-child td { border-bottom: 0; }
     };
   }
 
+  // ---- chart
+  var IND = [["ema9", "EMA 9", "#B3D6FF", true], ["ema20", "EMA 20", "#79B8FF", true], ["vwap", "VWAP", "#E6EDF3", true],
+    ["sma50", "SMA 50", "#C9A0FF", false], ["sma200", "SMA 200", "#FF9BCB", false], ["bb", "Bollinger (20, 2)", "#6E7681", false],
+    ["or", "Ryto intervalas", "#F0A030", true], ["volume", "Apyvarta", "", true], ["rsi", "RSI 14", "", true]];
+  var C = { main: null, rsi: null, sym: null, int: "5m", data: null };
+  $("c-ind").innerHTML = IND.map(function (i) { return '<label><input type="checkbox" data-ind="' + i[0] + '"' + (i[3] ? " checked" : "") + '> ' + i[1] + '</label>'; }).join("");
+  function indOn(k) { var el = document.querySelector('[data-ind="' + k + '"]'); return el && el.checked; }
+  var THEME = { layout: { background: { color: "#161B22" }, textColor: "#9AA4B2", fontFamily: "IBM Plex Mono, monospace" },
+    grid: { vertLines: { color: "#20262E" }, horzLines: { color: "#20262E" } }, rightPriceScale: { borderColor: "#262D36" },
+    timeScale: { borderColor: "#262D36", timeVisible: true, secondsVisible: false }, crosshair: { mode: 0 }, autoSize: true };
+  function drawChart() {
+    var d = C.data;
+    if (!window.LightweightCharts) { $("c-msg").textContent = "Grafikų biblioteka neįsikėlė."; return; }
+    if (C.main) { C.main.remove(); C.main = null; }
+    if (C.rsi) { C.rsi.remove(); C.rsi = null; }
+    if (!d) return;
+    C.main = LightweightCharts.createChart($("c-main"), THEME);
+    var cs = C.main.addCandlestickSeries({ upColor: "#79B8FF", downColor: "#F0A030", borderVisible: false, wickUpColor: "#79B8FF", wickDownColor: "#F0A030" });
+    cs.setData(d.candles);
+    if (indOn("volume")) {
+      var vs = C.main.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
+      C.main.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      vs.setData(d.volume.map(function (v) { return { time: v.time, value: v.value, color: v.up ? "rgba(121,184,255,0.35)" : "rgba(240,160,48,0.35)" }; }));
+    }
+    var line = function (key, color, width) {
+      var pts = d.lines[key]; if (!pts || !pts.length) return;
+      C.main.addLineSeries({ color: color, lineWidth: width || 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(pts);
+    };
+    IND.forEach(function (i) { if (["ema9", "ema20", "vwap", "sma50", "sma200"].indexOf(i[0]) >= 0 && indOn(i[0])) line(i[0], i[2], i[0] === "vwap" ? 2 : 1); });
+    if (indOn("bb")) { line("bb_upper", "#6E7681"); line("bb_mid", "#4A525C"); line("bb_lower", "#6E7681"); }
+    var LV = { or: ["#F0A030", 2], entry: ["#9AA4B2", 1], stop: ["#F0A030", 0], target: ["#79B8FF", 0] };
+    d.levels.forEach(function (l) {
+      if (l.kind === "or" && !indOn("or")) return;
+      cs.createPriceLine({ price: l.price, color: LV[l.kind][0], lineWidth: 1, lineStyle: LV[l.kind][1], axisLabelVisible: true, title: l.title });
+    });
+    var MC = { entry: "#79B8FF", win: "#3FB950", loss: "#F0A030" };
+    cs.setMarkers(d.markers.map(function (m) { return { time: m.time, position: m.position, shape: m.shape, color: MC[m.kind], text: m.text }; }));
+    $("c-rsi").style.display = indOn("rsi") ? "" : "none";
+    if (indOn("rsi") && d.rsi.length) {
+      C.rsi = LightweightCharts.createChart($("c-rsi"), THEME);
+      var rs = C.rsi.addLineSeries({ color: "#C9A0FF", lineWidth: 1, priceLineVisible: false });
+      var byTime = {}; d.rsi.forEach(function (p) { byTime[p.time] = p.value; });
+      // one point per candle (blank where RSI is not defined yet), so both charts scroll bar for bar
+      rs.setData(d.candles.map(function (c) { return byTime[c.time] == null ? { time: c.time } : { time: c.time, value: byTime[c.time] }; }));
+      [70, 30].forEach(function (p) { rs.createPriceLine({ price: p, color: "#4A525C", lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: String(p) }); });
+      C.main.timeScale().subscribeVisibleLogicalRangeChange(function (r) { if (r && C.rsi) C.rsi.timeScale().setVisibleLogicalRange(r); });
+    }
+    var n = d.candles.length;
+    if (n > 120) C.main.timeScale().setVisibleLogicalRange({ from: n - (C.int === "5m" ? 80 : 120), to: n + 2 });
+    else C.main.timeScale().fitContent();
+    if (C.rsi) C.rsi.timeScale().setVisibleLogicalRange(C.main.timeScale().getVisibleLogicalRange());
+    var last = d.candles[n - 1];
+    $("c-sub").textContent = last ? "paskutinė " + last.close.toFixed(2) : "duomenų nėra";
+  }
+  function loadChart(sym) {
+    sym = (sym || $("c-sym").value || "").trim().toUpperCase();
+    if (!sym) return;
+    C.sym = sym; $("c-sym").value = sym; $("c-title").textContent = sym + (C.int === "5m" ? " · 5 min" : " · dienos");
+    $("c-msg").textContent = "Kraunama…";
+    fetch("/api/chart?symbol=" + encodeURIComponent(sym) + "&interval=" + C.int, { cache: "no-store" })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function (j) { C.data = j; $("c-msg").textContent = ""; drawChart(); })
+      .catch(function (e) { C.data = null; drawChart(); $("c-msg").textContent = "Klaida: " + e.message; });
+  }
+  function defaultSymbol() {
+    if (S && S.position) return S.position.symbol;
+    var lp = S && S.last_pass, ev = lp && pickEval(lp);
+    return ev ? ev.symbol : "SPY";
+  }
+  function openChart(sym) { select($("t-chart")); loadChart(sym); }
+  $("chart-form").addEventListener("submit", function (e) { e.preventDefault(); loadChart(); });
+  $("c-ind").addEventListener("change", drawChart);
+  $("t-chart").addEventListener("click", function () { if (!C.sym) loadChart(defaultSymbol()); });
+  setInterval(function () { if (!$("p-chart").hidden && C.sym && C.int === "5m") loadChart(C.sym); }, 60000);
+
   // ---- events
   document.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.int) { C.int = b.dataset.int; document.querySelectorAll("#c-int button").forEach(function (x) { x.setAttribute("aria-pressed", x === b); }); if (C.sym) loadChart(C.sym); return; }
+    if (b.dataset.chart) { openChart(b.dataset.chart); return; }
     if (b.id === "pause") post("/api/control", { paused: !(S.control && S.control.paused) }).then(load);
     else if (b.dataset.act === "flatten") { if (confirm("Uždaryti poziciją kitoje patikroje?")) post("/api/control", { flatten: true }).then(load); }
     else if (b.dataset.act === "clear") post("/api/control", { clear_pending: true }).then(load);

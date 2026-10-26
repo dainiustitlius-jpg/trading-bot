@@ -157,6 +157,26 @@ python -m tradingbot sweep --variants "stop=or-low,target=2R,flat_by=11:00,vol=2
 Geriausias iš 96 variantų per tas pačias dienas iš dalies yra atsitiktinumas.
 Prieš juo pasitikėdami, išbandykite jį kelias savaites paper režimu.
 
+## Grafikai
+
+Pulto skirtukas **„Grafikas“** rodo bet kurios akcijos grafiką:
+
+- **Intervalas:** 5 min. (5 dienos) arba dienos žvakės (1 metai).
+- **Indikatoriai** (įjungiami varnelėmis): EMA 9/20, VWAP, SMA 50/200,
+  Bollinger (20, 2), apyvarta, RSI 14.
+- **Ryto intervalas:** jo viršus ir apačia, t. y. lygis, kurį pramuša strategija.
+- **Boto žymės:** įėjimai ir išėjimai rodyklėmis, atviros pozicijos įėjimas,
+  stop ir target linijomis.
+
+Grafiką atidaro ir mygtukas „Grafikas“ prie kandidato bei atviros pozicijos.
+
+Laikas rodomas New York laiku. 5 min. grafikas atsinaujina kas minutę.
+
+Grafikus braižo [TradingView Lightweight Charts](https://www.tradingview.com/)
+v4.2.0 (Apache-2.0). Biblioteka įdėta į projektą
+(`src/tradingbot/web/vendor/`, su licencija ir NOTICE), todėl jos atsisiųsti
+nereikia. Indikatoriai skaičiuojami be papildomų bibliotekų (`indicators.py`).
+
 ## Live režimas
 
 Nustatymuose pasirinkite „Live su patvirtinimu“. Botas:
