@@ -70,6 +70,7 @@ Store, rašykite `py` vietoj `python`.
 | `replay --date D --data DIR --workspace W` | viena išsaugota diena su fiksuotu laikrodžiu (`--start`, `--end`, `--dashboard`) |
 | `fetch` | atsisiunčia 60 dienų 5 min. barus backtest'ui (`--symbols`, numatyta 40 likvidžių JAV akcijų) |
 | `backtest` | visas botas per išsaugotas dienas (`--days`, `--symbols`, `--dashboard`) |
+| `sweep` | tas pats backtest su keliais stop/target/uždarymo variantais, surikiuota (`--variants`, `--workers`, `--dashboard`) |
 | `notify-test` | bandomasis pranešimas visais sukonfigūruotais kanalais |
 | `pass` | viena patikra dabar, nieko nevykdo |
 | `evaluate TSLA` | viena akcija per grandinę |
@@ -109,6 +110,35 @@ Du apribojimai:
   todėl lieka apie 39 dienas.
 
 Su 40 akcijų backtest trunka apie 15–30 min.
+
+## Nustatymų palyginimas
+
+```powershell
+python -m tradingbot sweep --dashboard
+```
+
+Paleidžia 6 variantus vienu metu keliais procesoriaus branduoliais:
+
+- `or-mid` stop su 1R, 1.5R ir 2R target;
+- `or-low` stop su 1R target;
+- 1R ir 2R target su uždarymu 12:00.
+
+Rezultatų lentelė, surikiuota pagal vidutinį R, rodoma pulto skirtuke
+„Sandoriai“ ir faile `runs/sweep/bot/sweep.json`.
+
+Savo variantus galite nurodyti taip:
+
+```powershell
+python -m tradingbot sweep --variants "stop=or-mid,target=1R;stop=or-low,target=2R,flat_by=12:00"
+```
+
+Kai uždarymo laikas ankstesnis, nauji įėjimai baigiami 30 min. prieš jį.
+
+Su 40 akcijų vienas variantas trunka ~20 min. Keli variantai vyksta
+lygiagrečiai, todėl iš viso palyginimas užtrunka maždaug 40–60 min.
+
+Geriausias variantas per tas pačias 39 dienas iš dalies yra atsitiktinumas.
+Prieš juo pasitikėdami, išbandykite jį kelias savaites paper režimu.
 
 ## Live režimas
 

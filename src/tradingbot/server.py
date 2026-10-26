@@ -85,6 +85,7 @@ class Dashboard:
             "trades": list(reversed(trades[-30:])),
             "settings": self.settings(cfg, limits),
             "backtest": read_json(store.dir / "backtest.json"),
+            "sweep": read_json(store.dir / "sweep.json"),
         }
 
     @staticmethod

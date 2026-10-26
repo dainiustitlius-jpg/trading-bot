@@ -1,4 +1,4 @@
-"""tradingbot: doctor, init, evaluate, pass, run, replay, dashboard, fetch, backtest, notify-test
+"""tradingbot: doctor, init, evaluate, pass, run, replay, dashboard, fetch, backtest, sweep, notify-test
 
 Replays: --now "2026-10-19 10:15" pins the New York clock and --data DIR reads
 saved data (see skills.ReplayData) instead of the network.
@@ -15,7 +15,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-from . import backtest, history
+from . import backtest, history, sweep
 from . import config as config_mod
 from .bot import Bot, money, replay_day
 from .clock import Clock
@@ -254,6 +254,54 @@ def cmd_backtest(args) -> int:
     return 0
 
 
+def cmd_sweep(args) -> int:
+    root = Path(args.workspace or "runs/sweep")
+    texts = [t for t in (args.variants or "").split(";") if t.strip()] or sweep.DEFAULT_VARIANTS
+    variants = [sweep.parse_variant(t) for t in texts]
+    if args.dashboard:  # up first: the Sandoriai tab shows the comparison as it fills in
+        args.workspace = str(root)
+        _dashboard(args, background=True)
+    res = sweep.run(
+        _config_path(args),
+        Path(args.history),
+        root,
+        variants,
+        symbols=_symbols(args.symbols),
+        days=args.days,
+        workers=args.workers,
+    )
+    print()
+    row = "%-4s %-40s %8s %8s %11s %8s %10s"
+    print(row % ("#", "variantas", "sandor.", "pelning.", "rezultatas", "vid. R", "max krit."))
+    for r in res["variants"]:
+        if r["status"] != "done":
+            print("     %-40s %s" % (r["label"], r.get("error") or r["status"]))
+            continue
+        win = "%d%%" % round(100 * r["win_rate"]) if r["win_rate"] is not None else "–"
+        r_avg = r["r_avg"] if r["r_avg"] is not None else "–"
+        print(
+            row
+            % (
+                r.get("rank", ""),
+                r["label"],
+                r["trades"],
+                win,
+                money(r["pnl"]),
+                r_avg,
+                money(r["max_drawdown"]),
+            )
+        )
+    print("Failas: %s" % (root / "bot" / "sweep.json"))
+    if args.dashboard:
+        print("Palyginimas baigtas. Pultas veikia, kol paspausite Ctrl+C.")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+    return 0
+
+
 def cmd_notify_test(args) -> int:
     cfg = config_mod.load(_config_path(args) if _config_path(args).is_file() else None)
     n = Notifier(cfg.notify)
@@ -313,6 +361,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--days", type=int, help="only the last N tradable days")
     p.add_argument("--dashboard", action="store_true", help="serve the dashboard over the result afterwards")
     p.set_defaults(func=cmd_backtest)
+    p = sub.add_parser("sweep", parents=[common, web], help="the backtest once per settings variant, ranked")
+    p.add_argument("--variants", help='e.g. "stop=or-mid,target=1R;stop=or-low,target=2R,flat_by=12:00"')
+    p.add_argument("--history", default="data/history")
+    p.add_argument("--symbols", help="comma separated (default: every saved symbol)")
+    p.add_argument("--days", type=int, help="only the last N tradable days")
+    p.add_argument("--workers", type=int, help="variants run at once (default: CPU cores - 1)")
+    p.add_argument("--dashboard", action="store_true", help="serve the dashboard while it runs")
+    p.set_defaults(func=cmd_sweep)
     p = sub.add_parser(
         "notify-test", parents=[common], help="send a test message to every configured channel"
     )
