@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -145,8 +146,11 @@ def _replay(args) -> ReplayData | None:
 
 def _dashboard(args, background: bool):
     dash = Dashboard(_config_path(args), args.workspace)
-    httpd = serve(dash, args.host, args.port, background=background)
-    print("Pultas: http://%s:%d  (Ctrl+C sustabdo)" % (args.host, args.port))
+    httpd = serve(dash, args.host, args.port, background=True)
+    print("Pultas: http://%s:%d  (Ctrl+C sustabdo)" % (args.host, args.port), flush=True)
+    if not background:
+        while True:
+            time.sleep(3600)
     return httpd
 
 
@@ -166,13 +170,17 @@ def cmd_replay(args) -> int:
     if not args.workspace:
         raise ValueError("replay needs --workspace (a folder of its own, e.g. runs/replay)")
     bot = Bot(_config_path(args), args.workspace, replay=_replay(args))
-    replay_day(bot, args.date, args.start, args.end)
-    print("Žurnalas: %s" % bot.store.journal_path)
-    if args.dashboard:
-        try:
-            _dashboard(args, background=False)
-        except KeyboardInterrupt:
-            pass
+    if args.dashboard:  # up first, so the page fills in while the day replays
+        _dashboard(args, background=True)
+    try:
+        replay_day(bot, args.date, args.start, args.end)
+        print("Žurnalas: %s" % bot.store.journal_path)
+        if args.dashboard:
+            print("Pakartojimas baigtas. Pultas veikia, kol paspausite Ctrl+C.")
+            while True:
+                time.sleep(3600)
+    except KeyboardInterrupt:
+        print("Sustabdyta.")
     return 0
 
 
