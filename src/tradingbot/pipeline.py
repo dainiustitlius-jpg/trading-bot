@@ -59,10 +59,11 @@ def _failed(name: str, res: SkillResult) -> Step:
 
 
 class Pipeline:
-    def __init__(self, cfg: BotConfig, runner: SkillRunner, workspace: Workspace):
+    def __init__(self, cfg: BotConfig, runner: SkillRunner, workspace: Workspace, skip_news: bool = False):
         self.cfg = cfg
         self.runner = runner
         self.ws = workspace
+        self.skip_news = skip_news  # backtests: old headlines cannot be fetched
 
     # -- market and scan ---------------------------------------------------
 
@@ -100,7 +101,10 @@ class Pipeline:
 
     def evaluate(self, symbol: str) -> Evaluation:
         ev = Evaluation(symbol.upper())
-        for step in (self._news, self._entry, self._exit, self._timemachine, self._budget, self._risk):
+        steps = [self._news, self._entry, self._exit, self._timemachine, self._budget, self._risk]
+        if self.skip_news:
+            steps = steps[1:]
+        for step in steps:
             result = step(ev)
             ev.steps.append(result)
             if not result.ok:
@@ -236,12 +240,13 @@ class Pipeline:
 
     # -- a whole pass ------------------------------------------------------
 
-    def run_once(self, symbols: list[str] | None = None) -> PassResult:
+    def run_once(self, symbols: list[str] | None = None, market: Step | None = None) -> PassResult:
         """One pass: is the market open, what broke out, and the first candidate that passes every gate.
 
-        With `symbols` the scan is skipped and those are evaluated in order.
+        With `symbols` the scan is skipped and those are evaluated in order; `market` reuses a clock
+        reading the caller already has.
         """
-        result = PassResult(now=self.runner.clock.ny_text(), market=self.market())
+        result = PassResult(now=self.runner.clock.ny_text(), market=market or self.market())
         if not result.market.ok:
             return result
         if symbols is None:

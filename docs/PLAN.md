@@ -138,9 +138,9 @@ galioti).
 3. ✅ **Paper brokeris + žurnalas**, dienos ataskaita (sandoriai, laimėjimų
    dalis, vidutinis R, $).
 4. ✅ **Scheduler ir gyvas paper režimas** visai dienai su Yahoo duomenimis.
-5. **Replay/backtest**: paskutinių ~60 dienų (Yahoo 5 min. riba) paleidimas
+5. ✅ **Replay/backtest**: paskutinių ~60 dienų (Yahoo 5 min. riba) paleidimas
    per visą grandinę, rezultatai lyginami su Time Machine istorija.
-6. **Live su patvirtinimu** ir pranešimais.
+6. ✅ **Live su patvirtinimu** ir pranešimais.
 7. Vėliau: kripto (ccxt) ir futures adapteriai su savo scanner/entry/risk
    moduliais, bet tais pačiais `plan.json` / `orders.json` kontraktais;
    ML balas ir LLM naujienų vertinimas kaip papildomi `filters.py` filtrai.

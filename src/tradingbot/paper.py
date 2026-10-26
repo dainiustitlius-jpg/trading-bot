@@ -138,23 +138,27 @@ class PaperBroker:
     def close(self, pos: dict, ex: Exit) -> dict:
         """Record the exit fill and return the closed trade."""
         self._fill(pos["symbol"], "sell", pos["qty"], ex.price)
-        risk_ps = pos.get("risk_per_share") or (pos["entry_plan"] - pos["stop"])
-        pnl = cents(pos["qty"] * (ex.price - pos["entry"]))
-        return {
-            "date": parse_ny(pos["entry_at"]).date().isoformat(),
-            "symbol": pos["symbol"],
-            "qty": pos["qty"],
-            "entry": pos["entry"],
-            "entry_at": pos["entry_at"],
-            "stop": pos["stop"],
-            "target": pos["target"],
-            "exit": ex.price,
-            "exit_at": ex.at.isoformat(timespec="seconds"),
-            "exit_bar": ex.bar,
-            "reason": ex.reason,
-            "pnl": pnl,
-            "r": round((ex.price - pos["entry"]) / risk_ps, 2) if risk_ps else None,
-            "max_loss": pos.get("max_loss"),
-            "order_id": pos["order_id"],
-            "mode": "paper",
-        }
+        return trade_record(pos, ex, "paper")
+
+
+def trade_record(pos: dict, ex: Exit, mode: str) -> dict:
+    risk_ps = pos.get("risk_per_share") or (pos["entry_plan"] - pos["stop"])
+    pnl = cents(pos["qty"] * (ex.price - pos["entry"]))
+    return {
+        "date": parse_ny(pos["entry_at"]).date().isoformat(),
+        "symbol": pos["symbol"],
+        "qty": pos["qty"],
+        "entry": pos["entry"],
+        "entry_at": pos["entry_at"],
+        "stop": pos["stop"],
+        "target": pos["target"],
+        "exit": ex.price,
+        "exit_at": ex.at.isoformat(timespec="seconds"),
+        "exit_bar": ex.bar,
+        "reason": ex.reason,
+        "pnl": pnl,
+        "r": round((ex.price - pos["entry"]) / risk_ps, 2) if risk_ps else None,
+        "max_loss": pos.get("max_loss"),
+        "order_id": pos.get("order_id"),
+        "mode": mode,
+    }

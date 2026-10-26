@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from . import config as config_mod
-from .store import BotStore
+from .store import BotStore, read_json
 from .workspace import Workspace
 
 WEB = Path(__file__).resolve().parent / "web" / "index.html"
@@ -84,6 +84,7 @@ class Dashboard:
             "journal": list(reversed(store.journal(60))),
             "trades": list(reversed(trades[-30:])),
             "settings": self.settings(cfg, limits),
+            "backtest": read_json(store.dir / "backtest.json"),
         }
 
     @staticmethod
@@ -101,6 +102,7 @@ class Dashboard:
         scan = config_mod.ScanSettings(**{**asdict(cfg.scan), **(body.get("scan") or {})})
         filters = config_mod.FilterSettings(**{**asdict(cfg.filters), **(body.get("filters") or {})})
         paper = config_mod.PaperSettings(**{**asdict(cfg.paper), **(body.get("paper") or {})})
+        notify = config_mod.NotifySettings(**{**asdict(cfg.notify), **(body.get("notify") or {})})
         limits = dict(cfg.limits)
         for k, v in (body.get("limits") or {}).items():
             if not isinstance(k, str) or not k.replace("_", "").isalnum():
@@ -113,6 +115,7 @@ class Dashboard:
             plan=plan,
             filters=filters,
             paper=paper,
+            notify=notify,
             limits=limits,
         )
         text = config_mod.dump(new)

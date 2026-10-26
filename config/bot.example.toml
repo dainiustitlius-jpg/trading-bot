@@ -35,3 +35,14 @@ flat_by = "15:55"
 
 [paper]
 slippage_bps = 5   # added to the entry, taken off stop and market exits
+
+[notify]
+# Pranešimai: užpildykite bent vieną kanalą. Slaptažodžiai tik aplinkos kintamuosiuose.
+events = ["entry", "exit", "ticket", "alert", "error", "report"]
+telegram_chat_id = ""       # + aplinkos kintamasis TELEGRAM_BOT_TOKEN
+ntfy_topic = ""             # ntfy programėlė telefone; temą gali skaityti kiekvienas, kas ją žino
+ntfy_server = "https://ntfy.sh"
+email_to = ""
+smtp_host = ""              # pvz. smtp.gmail.com
+smtp_port = 587
+smtp_user = ""              # + aplinkos kintamasis SMTP_PASSWORD

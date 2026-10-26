@@ -4,3 +4,4 @@ runs/
 config/bot.toml
 __pycache__/
 *.egg-info/
+data/

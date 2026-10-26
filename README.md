@@ -6,6 +6,7 @@ kaip skaičiavimo variklį. Planas: [docs/PLAN.md](docs/PLAN.md).
 
 Ką botas daro:
 
+- Backtest per paskutines ~60 dienų, live pozicijų sekimas ir pranešimai (ntfy, Telegram, el. paštas).
 - Kas 5 min. prekybos metu eina per grandinę
   `scanner -> news -> entry -> exit -> timemachine -> budget -> risk`.
 - **Paper režimas:** kai `trader-risk` duoda PASS, simuliuotas brokeris įvykdo
@@ -67,6 +68,9 @@ Store, rašykite `py` vietoj `python`.
 | `run` | boto ciklas kas 5 min. + pultas (`--no-dashboard`, `--port`) |
 | `dashboard` | tik pultas |
 | `replay --date D --data DIR --workspace W` | viena išsaugota diena su fiksuotu laikrodžiu (`--start`, `--end`, `--dashboard`) |
+| `fetch` | atsisiunčia 60 dienų 5 min. barus backtest'ui (`--symbols`, numatyta 40 likvidžių JAV akcijų) |
+| `backtest` | visas botas per išsaugotas dienas (`--days`, `--symbols`, `--dashboard`) |
+| `notify-test` | bandomasis pranešimas visais sukonfigūruotais kanalais |
 | `pass` | viena patikra dabar, nieko nevykdo |
 | `evaluate TSLA` | viena akcija per grandinę |
 
@@ -85,6 +89,61 @@ Bendri raktai: `--config` (numatytas `config/bot.toml`), `--workspace`
 
 Paper ir live naudoja atskirus aplankus, todėl paper bandymai niekada
 nesusimaišo su live žurnalu.
+
+## Backtest
+
+```powershell
+python -m tradingbot fetch
+python -m tradingbot backtest --dashboard
+```
+
+`fetch` atsisiunčia 60 dienų duomenis į `data/history` (apie minutę).
+`backtest` per kiekvieną dieną leidžia visą botą: skenerį, įėjimą, Time Machine,
+dydį, rizikos patikrą ir paper brokerį. Kiekviena diena mato tik savo ir
+ankstesnius barus. Rezultatai rodomi pulto skirtuke „Sandoriai“ ir faile
+`runs/backtest/bot/backtest.json`.
+
+Du apribojimai:
+- **Naujienų filtras praleidžiamas,** nes senų antraščių gauti negalima.
+- **Pirmos 20 dienų neprekiaujamos.** Jos tik užpildo Time Machine istoriją,
+  todėl lieka apie 39 dienas.
+
+Su 40 akcijų backtest trunka apie 15–30 min.
+
+## Live režimas
+
+Nustatymuose pasirinkite „Live su patvirtinimu“. Botas:
+
+1. **Paruošia bilietą** ir praneša.
+2. **Laukia jūsų patvirtinimo.** Claude chate paleidžiate `/trader-broker`,
+   atsakote „taip“ ir paspaudžiate „Allow once“.
+3. **Pradeda sekti poziciją,** kai `trader/state/broker.json` atsiranda įrašas
+   `placed`. Jį įrašo `ticket.py result`.
+4. **Praneša,** kai kaina pasiekia stop arba target ir kai ateina laikas uždaryti.
+   Pats orderių nesiunčia.
+5. **Uždaro sandorį žurnale,** kai įrašote pardavimą su `ticket.py fill`.
+
+## Pranešimai
+
+Faile `config/bot.toml` (arba pulto nustatymuose) užpildykite bent vieną kanalą:
+
+| Kanalas | Ką įrašyti nustatymuose | Slaptas raktas (tik aplinkos kintamajame) |
+| --- | --- | --- |
+| **ntfy** | `ntfy_topic`: ilga, atsitiktinė tema | nereikia |
+| **Telegram** | `telegram_chat_id` | `TELEGRAM_BOT_TOKEN` |
+| **El. paštas** | `email_to`, `smtp_host`, `smtp_user` | `SMTP_PASSWORD` |
+
+- **ntfy** yra paprasčiausias: įdiekite programėlę ntfy telefone ir užsiprenumeruokite
+  tą pačią temą. Kas žino temos pavadinimą, tas mato pranešimus, todėl rinkitės ilgą
+  atsitiktinę.
+- **Telegram:** žetoną gausite iš @BotFather.
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN = "123:ABC..."
+python -m tradingbot notify-test
+```
+
+Replay ir backtest pranešimų nesiunčia.
 
 ## Paper brokerio taisyklės
 

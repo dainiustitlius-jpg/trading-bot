@@ -37,6 +37,18 @@ class PaperSettings:
 
 
 @dataclass
+class NotifySettings:
+    events: list[str] = field(default_factory=lambda: ["entry", "exit", "ticket", "alert", "error", "report"])
+    telegram_chat_id: str = ""  # the token comes from TELEGRAM_BOT_TOKEN
+    ntfy_topic: str = ""  # anyone who knows the topic can read it: pick a long random one
+    ntfy_server: str = "https://ntfy.sh"
+    email_to: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""  # the password comes from SMTP_PASSWORD
+
+
+@dataclass
 class BotConfig:
     mode: str = "paper"  # paper | live
     workspace: str = ""  # empty: runs/<mode>, so paper and live never share trader/ files
@@ -44,6 +56,7 @@ class BotConfig:
     plan: PlanSettings = field(default_factory=PlanSettings)
     filters: FilterSettings = field(default_factory=FilterSettings)
     paper: PaperSettings = field(default_factory=PaperSettings)
+    notify: NotifySettings = field(default_factory=NotifySettings)
     limits: dict[str, Any] = field(default_factory=dict)  # merged over trader-budget's config.example.json
 
     def __post_init__(self):
@@ -75,6 +88,7 @@ def load(path: str | Path | None) -> BotConfig:
         plan=_section(PlanSettings, raw, "plan"),
         filters=_section(FilterSettings, raw, "filters"),
         paper=_section(PaperSettings, raw, "paper"),
+        notify=_section(NotifySettings, raw, "notify"),
         limits=dict(raw.get("limits", {}) or {}),
     )
 
@@ -97,7 +111,13 @@ def dump(cfg: BotConfig) -> str:
     lines += ["mode = %s" % _toml_value(cfg.mode)]
     if cfg.workspace:
         lines += ["workspace = %s" % _toml_value(cfg.workspace)]
-    sections = {"scan": cfg.scan, "plan": cfg.plan, "filters": cfg.filters, "paper": cfg.paper}
+    sections = {
+        "scan": cfg.scan,
+        "plan": cfg.plan,
+        "filters": cfg.filters,
+        "paper": cfg.paper,
+        "notify": cfg.notify,
+    }
     for name, obj in sections.items():
         lines += ["", "[%s]" % name]
         lines += ["%s = %s" % (k, _toml_value(v)) for k, v in asdict(obj).items()]

@@ -121,6 +121,7 @@ tr:last-child td { border-bottom: 0; }
 </section>
 
 <section role="tabpanel" id="p-trades" aria-labelledby="t-trades" class="stack" hidden>
+  <div id="backtest"></div>
   <div class="kpis" id="tr-kpis"></div>
   <section class="panel" aria-labelledby="tr-h"><h2 id="tr-h">Uždaryti sandoriai</h2><div id="trades"></div></section>
 </section>
@@ -228,7 +229,8 @@ tr:last-child td { border-bottom: 0; }
         '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 24px"><span style="font-size:32px;font-weight:700">' + esc(pos.symbol) + '</span><span class="mono muted">' + pos.qty + ' akc. × ' + pos.entry.toFixed(2) + '</span><span class="mono">Kaina ' + pos.last_price.toFixed(2) + ' <span class="' + cls(open) + '">' + signed(open) + '</span></span><span class="xs muted mono">' + hm(pos.last_price_at) + ' ET</span></div>' +
         '<div class="ladder" role="img" aria-label="Kaina ' + pos.last_price + ' tarp stop ' + pos.stop + ' ir target ' + pos.target + '"><div class="track" style="background:linear-gradient(90deg,var(--orange) 0 ' + en + '%,var(--blue-strong) ' + en + '% 100%)"></div><div class="entry" style="left:' + en + '%"></div><div class="now" style="left:' + at + '%"></div></div>' +
         '<div class="ladder-labels"><span style="color:var(--orange)">Stop ' + pos.stop.toFixed(2) + '</span><span class="muted" style="text-align:center">Įėjimas ' + pos.entry.toFixed(2) + '<br>' + hm(pos.entry_at) + ' ET</span><span style="color:var(--blue);text-align:right">Target ' + pos.target.toFixed(2) + '</span></div>' +
-        '<div class="inset" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px"><div><div class="small muted">Uždaryti iki</div><div class="mono" style="font-size:17px;font-weight:600">' + esc(pos.flat_by) + ' ET</div></div><button type="button" class="btn" data-act="flatten">Uždaryti dabar</button></div>';
+        '<div class="inset" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px"><div><div class="small muted">Uždaryti iki</div><div class="mono" style="font-size:17px;font-weight:600">' + esc(pos.flat_by) + ' ET</div></div><button type="button" class="btn" data-act="flatten">Uždaryti dabar</button></div>' +
+        (pos.mode === "live" ? '<p class="small" style="margin:0;color:var(--orange)">Live pozicija: stop-loss ir take-profit laukia brokeryje. Botas tik seka ir praneša; uždaroma per /trader-broker.' + (pos.entry_recorded ? "" : " Įvykdymo kaina dar neįrašyta (ticket.py fill).") + '</p>' : "");
     }
 
     var j = S.journal || [];
@@ -289,7 +291,21 @@ tr:last-child td { border-bottom: 0; }
     $("cand").innerHTML = html;
   }
 
+  function renderBacktest() {
+    var b = S.backtest;
+    if (!b) return "";
+    var wr = b.win_rate == null ? "–" : Math.round(100 * b.win_rate) + "%";
+    return '<section class="panel"><div class="head"><h2>Backtest ' + esc(b.from) + ' – ' + esc(b.to) + '</h2><span class="small muted">' + esc(b.days) + ' d. · ' + esc((b.symbols || []).length) + ' akc. · naujienų filtras praleistas</span></div>' +
+      '<div class="kpis"><div class="inset"><div class="xs muted">Sandoriai</div><div class="mono" style="font-size:20px">' + esc(b.trades) + '</div></div>' +
+      '<div class="inset"><div class="xs muted">Pelningi</div><div class="mono" style="font-size:20px">' + wr + '</div></div>' +
+      '<div class="inset"><div class="xs muted">Rezultatas</div><div class="mono ' + cls(b.pnl) + '" style="font-size:20px">' + signed(b.pnl) + '</div></div>' +
+      '<div class="inset"><div class="xs muted">Vidutinis R</div><div class="mono" style="font-size:20px">' + esc(b.r_avg == null ? "–" : b.r_avg) + '</div></div>' +
+      '<div class="inset"><div class="xs muted">Max kritimas</div><div class="mono" style="font-size:20px">' + money(b.max_drawdown) + '</div></div></div>' +
+      '<p class="xs muted" style="margin:0">Išėjimai: ' + esc(Object.keys(b.exits || {}).map(function (k) { return k + " " + b.exits[k]; }).join(", ") || "–") + '. Praeities rezultatai negarantuoja ateities.</p></section>';
+  }
+
   function renderTrades() {
+    $("backtest").innerHTML = renderBacktest();
     var tr = S.trades || [], n = tr.length, wins = tr.filter(function (t) { return t.pnl > 0; }).length;
     var pnl = tr.reduce(function (a, t) { return a + t.pnl; }, 0), rs = tr.map(function (t) { return t.r || 0; });
     var avg = n ? rs.reduce(function (a, b) { return a + b; }, 0) / n : 0;
@@ -326,6 +342,11 @@ tr:last-child td { border-bottom: 0; }
       '<div class="checks"><label><input type="checkbox" id="imp"' + (F.block_important_filings ? " checked" : "") + '> Praleisti po svarbaus 8-K pranešimo</label></div><div class="fields">' +
       '<div class="field"><label for="age">Pramušimas ne senesnis nei (min.)</label><input id="age" type="text" value="' + esc(s.scan.max_trigger_age_minutes) + '"></div>' +
       '<div class="field"><label for="hist">Min. signalų istorijoje (60 d.)</label><input id="hist" type="text" value="' + esc(F.min_history_triggers) + '"></div></div></section></div>' +
+      '<section class="panel"><div><h2>Pranešimai</h2><div class="small muted">Telegram žetonas ir SMTP slaptažodis įrašomi tik aplinkos kintamuosiuose TELEGRAM_BOT_TOKEN ir SMTP_PASSWORD. Patikrinti: python -m tradingbot notify-test</div></div><div class="fields">' +
+      [["ntfy_topic", "ntfy tema (telefono programėlė)"], ["telegram_chat_id", "Telegram chat ID"], ["email_to", "El. paštas"], ["smtp_host", "SMTP serveris"], ["smtp_user", "SMTP vartotojas"]].map(function (f) { return '<div class="field"><label for="n-' + f[0] + '">' + f[1] + '</label><input id="n-' + f[0] + '" type="text" data-notify="' + f[0] + '" value="' + esc(s.notify[f[0]]) + '"></div>'; }).join("") +
+      '</div><fieldset><legend>Apie ką pranešti</legend><div class="checks">' +
+      [["entry", "įėjimai"], ["exit", "išėjimai"], ["ticket", "live bilietai"], ["alert", "live įspėjimai"], ["error", "klaidos"], ["report", "dienos ataskaita"]].map(function (e) { return '<label><input type="checkbox" data-event="' + e[0] + '"' + (s.notify.events.indexOf(e[0]) >= 0 ? " checked" : "") + '> ' + e[1] + '</label>'; }).join("") +
+      '</div></fieldset></section>' +
       '<div class="row" style="justify-content:flex-end;align-items:center;gap:12px"><span class="small" id="save-msg" role="status" aria-live="polite"></span><button type="button" class="btn ghost" id="reset">Atšaukti</button><button type="submit" class="btn primary">Išsaugoti</button></div>';
   }
   function num(v, name) { var n = Number(String(v).replace(",", ".")); if (!isFinite(n)) throw new Error(name + ": ne skaičius"); return n; }
@@ -340,6 +361,7 @@ tr:last-child td { border-bottom: 0; }
       plan: { stop: $("stop").value, target: t ? t.dataset.target : "2R" },
       paper: { slippage_bps: num($("slip").value, "Slippage") },
       scan: { max_trigger_age_minutes: Math.round(num($("age").value, "Pramušimo amžius")) },
+      notify: (function () { var n = { events: Array.prototype.map.call(f.querySelectorAll("[data-event]:checked"), function (c) { return c.dataset.event; }) }; f.querySelectorAll("[data-notify]").forEach(function (i) { n[i.dataset.notify] = i.value.trim(); }); return n; })(),
       filters: { block_news_tags: Array.prototype.map.call(f.querySelectorAll("[data-tag]:checked"), function (c) { return c.dataset.tag; }), block_important_filings: $("imp").checked, min_history_triggers: Math.round(num($("hist").value, "Min. signalų")) }
     };
   }

@@ -1,4 +1,4 @@
-"""tradingbot doctor | init | evaluate SYMBOL | pass | run | replay | dashboard
+"""tradingbot: doctor, init, evaluate, pass, run, replay, dashboard, fetch, backtest, notify-test
 
 Replays: --now "2026-10-19 10:15" pins the New York clock and --data DIR reads
 saved data (see skills.ReplayData) instead of the network.
@@ -15,9 +15,11 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
+from . import backtest, history
 from . import config as config_mod
-from .bot import Bot, replay_day
+from .bot import Bot, money, replay_day
 from .clock import Clock
+from .notify import Notifier
 from .pipeline import Evaluation, PassResult, Pipeline, Step
 from .server import Dashboard, serve
 from .skills import SKILLS_DIR, ReplayData, SkillRunner
@@ -192,6 +194,75 @@ def cmd_dashboard(args) -> int:
     return 0
 
 
+DEFAULT_SYMBOLS = (
+    "AAPL MSFT NVDA AMZN GOOGL META TSLA AMD AVGO NFLX JPM BAC XOM CVX WMT COST KO PEP UNH LLY "
+    "JNJ PFE MRK V MA DIS INTC CSCO ORCL CRM ADBE QCOM MU PLTR UBER BA CAT GE F GM"
+).split()
+
+
+def _symbols(text: str | None) -> list[str] | None:
+    return [s.strip().upper() for s in text.split(",") if s.strip()] if text else None
+
+
+def cmd_fetch(args) -> int:
+    symbols = _symbols(args.symbols) or DEFAULT_SYMBOLS
+    print("Siunčiama %d akc. 60 dienų 5 min. barų į %s" % (len(symbols), args.history))
+    failed = history.fetch(symbols, Path(args.history))
+    print(
+        "Baigta: %d gerai, %d nepavyko%s"
+        % (len(symbols) - len(failed), len(failed), (": " + ", ".join(failed)) if failed else "")
+    )
+    return 1 if failed and len(failed) == len(symbols) else 0
+
+
+def cmd_backtest(args) -> int:
+    ws = Path(args.workspace or "runs/backtest")
+    res = backtest.run(
+        _config_path(args) if _config_path(args).is_file() else None,
+        Path(args.history),
+        ws,
+        symbols=_symbols(args.symbols),
+        days=args.days,
+    )
+    print()
+    print(
+        "Rezultatas %s – %s, %d dienų, %d akc. (naujienų filtras praleistas)"
+        % (res["from"], res["to"], res["days"], len(res["symbols"]))
+    )
+    print(
+        "  sandoriai %d · pelningi %s · rezultatas %s · vidutinis R %s · max kritimas %s"
+        % (
+            res["trades"],
+            "%d%%" % round(100 * res["win_rate"]) if res["win_rate"] is not None else "–",
+            money(res["pnl"]),
+            res["r_avg"] if res["r_avg"] is not None else "–",
+            money(res["max_drawdown"]),
+        )
+    )
+    print("  išėjimai: %s" % (", ".join("%s %d" % kv for kv in res["exits"].items()) or "–"))
+    print("Failas: %s" % (ws / "bot" / "backtest.json"))
+    if args.dashboard:
+        args.workspace = str(ws)
+        try:
+            _dashboard(args, background=False)
+        except KeyboardInterrupt:
+            pass
+    return 0
+
+
+def cmd_notify_test(args) -> int:
+    cfg = config_mod.load(_config_path(args) if _config_path(args).is_file() else None)
+    n = Notifier(cfg.notify)
+    if not n.channels():
+        print("Nė vienas kanalas nesukonfigūruotas: žr. [notify] config/bot.toml")
+        return 1
+    errors = n.send("Bandomasis pranešimas", "Trading bot pranešimai veikia.")
+    for ch in n.channels():
+        bad = [e for e in errors if e.startswith(ch + ":")]
+        print("%-8s %s" % (ch, bad[0] if bad else "išsiųsta"))
+    return 1 if errors else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="tradingbot", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -228,6 +299,20 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_replay)
     p = sub.add_parser("dashboard", parents=[common, web], help="only the dashboard")
     p.set_defaults(func=cmd_dashboard)
+    p = sub.add_parser("fetch", parents=[common], help="download 60 days of 5-minute bars for a backtest")
+    p.add_argument("--symbols", help="comma separated (default: 40 liquid US stocks)")
+    p.add_argument("--history", default="data/history")
+    p.set_defaults(func=cmd_fetch)
+    p = sub.add_parser("backtest", parents=[common, web], help="replay the bot over the saved 60 days")
+    p.add_argument("--history", default="data/history")
+    p.add_argument("--symbols", help="comma separated (default: every saved symbol)")
+    p.add_argument("--days", type=int, help="only the last N tradable days")
+    p.add_argument("--dashboard", action="store_true", help="serve the dashboard over the result afterwards")
+    p.set_defaults(func=cmd_backtest)
+    p = sub.add_parser(
+        "notify-test", parents=[common], help="send a test message to every configured channel"
+    )
+    p.set_defaults(func=cmd_notify_test)
     args = ap.parse_args(argv)
     # A Windows console may not encode every character a skill prints; never crash on that.
     for stream in (sys.stdout, sys.stderr):
