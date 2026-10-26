@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trading bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0E1116; --panel: #161B22; --raised: #1C232C; --line: #262D36; --line-strong: #3A434E;
+  --text: #E6EDF3; --muted: #9AA4B2; --blue: #79B8FF; --blue-strong: #2F81F7; --blue-bg: #0F2A4A;
+  --orange: #F0A030; --orange-bg: #1F1A10; --orange-badge: #3A2508; --ok: #3FB950; --ok-bg: #0F2E1A;
+  --grey-bar: #6E7681;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 var(--sans); }
+a { color: var(--blue); } a:hover { color: #B3D6FF; }
+h1, h2 { margin: 0; } h2 { font-size: 17px; font-weight: 600; }
+.wrap { max-width: 1376px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 24px; }
+@media (min-width: 720px) { .wrap { padding-inline: 32px; } }
+.stack { display: flex; flex-direction: column; gap: 24px; }
+.mono { font-family: var(--mono); } .muted { color: var(--muted); } .small { font-size: 13px; } .xs { font-size: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; }
+.badge { font: 600 12px var(--mono); letter-spacing: .08em; padding: 4px 10px; border-radius: 6px; background: var(--blue-bg); color: var(--blue); }
+.badge.live { background: var(--orange-badge); color: var(--orange); }
+[role="tablist"] { display: flex; flex-wrap: wrap; gap: 4px; }
+[role="tab"] { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+[role="tab"][aria-selected="true"] { background: var(--raised); color: var(--text); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.spacer { flex: 1 1 auto; }
+.status { display: flex; align-items: center; gap: 8px; font: 13px var(--mono); color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--grey-bar); } .dot.on { background: var(--ok); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.inset { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.grow-2 { flex: 2 1 560px; } .grow-1 { flex: 1 1 380px; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.kpi { gap: 6px; padding: 18px 20px; } .kpi .val { font: 600 28px var(--mono); } .kpi .val small { font-size: 16px; color: var(--muted); }
+.bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; } .bar > span { display: block; height: 100%; }
+.btn { min-height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--raised); color: var(--text); font: 600 15px var(--sans); cursor: pointer; }
+.btn.warn { background: transparent; border-color: var(--orange); color: var(--orange); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: var(--bg); }
+.btn.ghost { background: transparent; }
+.list { list-style: none; margin: 0; padding: 0; } .list > li { border-top: 1px solid var(--line); padding: 10px 0; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.steps li { flex: 1 1 160px; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--ok); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.steps li.stop { border-top-color: var(--orange); }
+.steps .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; }
+.steps .state { font: 600 11px var(--mono); color: var(--ok); } .steps li.stop .state { color: var(--orange); }
+.ladder { position: relative; height: 40px; }
+.ladder .track { position: absolute; left: 0; right: 0; top: 17px; height: 6px; border-radius: 3px; opacity: .35; }
+.ladder .entry { position: absolute; top: 8px; width: 2px; height: 24px; background: var(--muted); }
+.ladder .now { position: absolute; top: 4px; width: 14px; height: 32px; margin-left: -7px; border-radius: 4px; background: var(--text); box-shadow: 0 0 0 3px var(--bg); }
+.ladder-labels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font: 13px var(--mono); }
+.log li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; }
+.odds { display: flex; flex-direction: column; gap: 10px; }
+.odds > div { display: grid; grid-template-columns: 130px minmax(0, 1fr) 60px; align-items: center; gap: 12px; } .odds .bar { height: 14px; }
+.chain li { display: grid; grid-template-columns: 24px 130px minmax(0, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 560px) { .chain li { grid-template-columns: 24px minmax(0, 1fr); } .chain li > :last-child { grid-column: 2; } }
+.kv { display: flex; justify-content: space-between; gap: 12px; font: 14px var(--mono); }
+.pill { font: 600 14px var(--mono); padding: 8px 14px; border-radius: 8px; background: var(--ok-bg); color: var(--ok); }
+.pill.stop { background: var(--orange-badge); color: var(--orange); }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pills button { min-height: 44px; min-width: 72px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); font: 600 15px var(--mono); cursor: pointer; }
+.pills button[aria-pressed="true"] { border-color: var(--blue); background: var(--blue-bg); }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; } .field label, legend { font-size: 13px; color: var(--muted); }
+input[type="text"], input[type="number"], select { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); font: 15px var(--mono); width: 100%; }
+fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; }
+.choice:has(input:checked) { border-color: var(--blue); }
+.choice input, .checks input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--blue); }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 20px; } .checks label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+.callout { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px 18px; border-radius: 12px; background: var(--orange-bg); border: 1px solid var(--orange); }
+.table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; min-width: 720px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 13px; color: var(--muted); font-weight: 500; background: var(--bg); } td { font-family: var(--mono); font-size: 14px; }
+tr:last-child td { border-bottom: 0; }
+.pos { color: var(--blue); } .neg { color: var(--orange); }
+.empty { color: var(--muted); padding: 8px 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#79B8FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/></svg>
+    <span>Trading bot</span><span class="badge" id="badge">…</span>
+  </div>
+  <div role="tablist" aria-label="Ekranai">
+    <button role="tab" id="t-today" aria-controls="p-today" aria-selected="true">Šiandien</button>
+    <button role="tab" id="t-cand" aria-controls="p-cand" aria-selected="false" tabindex="-1">Kandidatai</button>
+    <button role="tab" id="t-trades" aria-controls="p-trades" aria-selected="false" tabindex="-1">Sandoriai</button>
+    <button role="tab" id="t-set" aria-controls="p-set" aria-selected="false" tabindex="-1">Nustatymai</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="status"><span class="dot" id="mdot" aria-hidden="true"></span><span id="mline">Kraunama…</span></div>
+  <button type="button" class="btn warn" id="pause">Sustabdyti įėjimus</button>
+</header>
+
+<section role="tabpanel" id="p-today" aria-labelledby="t-today" class="stack">
+  <div class="kpis" id="kpis"></div>
+  <div id="pending"></div>
+  <section class="panel" aria-labelledby="pass-h"><div class="head"><h2 id="pass-h">Paskutinė patikra</h2><span class="small muted" id="pass-sub"></span></div><div id="pass"></div></section>
+  <div class="row">
+    <section class="panel grow-2" aria-labelledby="pos-h"><h2 id="pos-h">Atvira pozicija</h2><div id="pos"></div></section>
+    <section class="panel grow-1" aria-labelledby="log-h"><h2 id="log-h">Sprendimų žurnalas</h2><ul class="list log" id="journal"></ul></section>
+  </div>
+</section>
+
+<section role="tabpanel" id="p-cand" aria-labelledby="t-cand" class="stack" hidden>
+  <div class="head"><div class="pills" id="cand-pick" role="group" aria-label="Kandidatas"></div><span class="small muted" id="cand-sub"></span></div>
+  <div id="cand"></div>
+</section>
+
+<section role="tabpanel" id="p-trades" aria-labelledby="t-trades" class="stack" hidden>
+  <div class="kpis" id="tr-kpis"></div>
+  <section class="panel" aria-labelledby="tr-h"><h2 id="tr-h">Uždaryti sandoriai</h2><div id="trades"></div></section>
+</section>
+
+<section role="tabpanel" id="p-set" aria-labelledby="t-set" class="stack" hidden>
+  <form id="settings" class="stack" novalidate></form>
+</section>
+
+<p class="xs muted" style="margin: 0">Nemokami Yahoo duomenys yra neoficialūs ir vėluoja. Tai tyrimų įrankis, ne finansinė konsultacija. <span id="ws"></span></p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var S = null, candIdx = null, settingsDirty = false;
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function money(x) { if (x == null || isNaN(x)) return "–"; var s = Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (x < 0 ? "−$" : "$") + s; }
+  function signed(x) { return (x > 0 ? "+" : "") + money(x); }
+  function cls(x) { return x > 0 ? "pos" : x < 0 ? "neg" : ""; }
+  var NYFMT = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hour12: false });
+  function hm(iso) { // New York HH:MM, whatever offset the time was written with
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (!isNaN(d)) return NYFMT.format(d);
+    var m = String(iso).match(/T(\d\d:\d\d)/); return m ? m[1] : String(iso);
+  }
+  function pct(x) { return (100 * x).toFixed(1) + "%"; }
+  var STEP = { news: "Naujienos", entry: "Įėjimas", exit: "Stop / target", timemachine: "Time Machine", budget: "Dydis", risk: "Rizika", market: "Rinka", scan: "Skeneris" };
+
+  // ---- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  function select(tab) {
+    tabs.forEach(function (t) { var on = t === tab; t.setAttribute("aria-selected", on); t.tabIndex = on ? 0 : -1; $(t.getAttribute("aria-controls")).hidden = !on; });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { select(t); });
+    t.addEventListener("keydown", function (e) {
+      var j = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : null;
+      if (j !== null) { var n = tabs[(j + tabs.length) % tabs.length]; select(n); n.focus(); }
+    });
+  });
+
+  // ---- api
+  function post(path, body) {
+    return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || r.status); return d; }); });
+  }
+  function load() {
+    return fetch("/api/state", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) { S = d; render(); })
+      .catch(function () { $("mline").textContent = "Nepavyko pasiekti boto"; });
+  }
+
+  // ---- render
+  function render() {
+    var live = S.mode === "live";
+    $("badge").textContent = live ? "LIVE" : "PAPER"; $("badge").className = "badge" + (live ? " live" : "");
+    var m = S.market || {};
+    $("mdot").className = "dot" + (m.ok ? " on" : "");
+    $("mline").textContent = (m.summary || "Botas dar neveikė") + (S.updated ? " · " + hm(S.updated) + " ET" : "");
+    var paused = !!(S.control && S.control.paused);
+    $("pause").textContent = paused ? "Tęsti įėjimus" : "Sustabdyti įėjimus";
+    $("pause").className = "btn " + (paused ? "primary" : "warn");
+    $("ws").textContent = "Aplankas: " + S.workspace;
+    renderToday(); renderCand(); renderTrades(); if (!settingsDirty) renderSettings();
+  }
+
+  function renderToday() {
+    var a = S.account, t = S.today;
+    var used = t.max_daily_loss ? Math.min(100, 100 * t.loss_used / t.max_daily_loss) : 0;
+    $("kpis").innerHTML =
+      '<div class="panel kpi"><span class="small muted">Sąskaita (' + (S.mode === "live" ? "live žurnalas" : "paper") + ')</span><span class="val">' + money(a.equity) + '</span><span class="small muted">Grynieji ' + money(a.cash) + ' · biudžetas ' + money(a.budget) + '</span></div>' +
+      '<div class="panel kpi"><span class="small muted">Dienos rezultatas</span><span class="val ' + cls(t.pnl) + '">' + signed(t.pnl) + '</span><span class="small muted">uždaryta ' + signed(t.pnl_realized) + ' · ' + (t.r_realized >= 0 ? "+" : "") + t.r_realized + 'R</span></div>' +
+      '<div class="panel kpi"><span class="small muted">Dienos nuostolio limitas</span><span class="val">' + money(t.loss_used) + ' <small>/ ' + money(t.max_daily_loss) + '</small></span><div class="bar" role="img" aria-label="Panaudota ' + used.toFixed(0) + ' procentų"><span style="width:' + used + '%;background:var(--orange)"></span></div></div>' +
+      '<div class="panel kpi"><span class="small muted">Sandoriai šiandien</span><span class="val">' + t.entries + ' <small>/ ' + esc(t.max_trades) + '</small></span><span class="small muted">Nauji įėjimai iki ' + esc(t.no_entries_after) + ' ET</span></div>';
+
+    var p = S.pending;
+    $("pending").innerHTML = p ? '<div class="callout"><strong style="color:var(--orange)">' + esc(p.symbol) + ': bilietas laukia jūsų patvirtinimo.</strong><span style="flex:1 1 320px">Pirkti ' + esc(p.order.qty) + ' · stop-loss ' + esc(p.order.stop_loss_stop_price) + ' · take-profit ' + esc(p.order.take_profit_limit_price) + ' · max nuostolis ' + money(p.max_loss) + '. Claude chate paleiskite /trader-broker.</span><button type="button" class="btn ghost" data-act="clear">Atmesti bilietą</button></div>' : "";
+
+    var lp = S.last_pass;
+    $("pass-sub").textContent = lp ? lp.now + " ET" : "";
+    if (!lp) { $("pass").innerHTML = '<p class="empty">Patikrų šiandien dar nebuvo.</p>'; }
+    else {
+      var html = '<p class="small muted" style="margin:0">' + esc(lp.scan ? lp.scan.summary : lp.market.summary) + '</p>';
+      var ev = pickEval(lp);
+      if (ev) {
+        html += '<div class="small"><strong>' + esc(ev.symbol) + '</strong> ' + (ev.passed ? '<span style="color:var(--ok)">praėjo visus vartus</span>' : '<span class="muted">praleista</span>') + '</div><ol class="steps">' +
+          ev.steps.map(function (s) { return '<li class="' + (s.ok ? "" : "stop") + '"><div class="top"><span>' + esc(STEP[s.name] || s.name) + '</span><span class="state">' + (s.ok ? (s.name === "risk" ? "PASS" : "OK") : "STOP") + '</span></div><span class="xs">' + esc(s.summary) + '</span></li>'; }).join("") + '</ol>';
+        var others = lp.evaluations.filter(function (e) { return e !== ev; });
+        if (others.length) html += '<p class="xs muted" style="margin:0">Kiti: ' + others.map(function (e) { var st = e.steps.filter(function (s) { return !s.ok; })[0]; return esc(e.symbol) + " (" + esc(st ? (STEP[st.name] || st.name) : "?") + ")"; }).join(", ") + '</p>';
+      }
+      $("pass").innerHTML = html;
+    }
+
+    var pos = S.position;
+    if (!pos) { $("pos").innerHTML = '<p class="empty">Atvirų pozicijų nėra.</p>'; }
+    else {
+      var span = pos.target - pos.stop, at = Math.max(0, Math.min(100, 100 * (pos.last_price - pos.stop) / span)), en = 100 * (pos.entry - pos.stop) / span;
+      var open = pos.qty * (pos.last_price - pos.entry);
+      $("pos").innerHTML =
+        '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 24px"><span style="font-size:32px;font-weight:700">' + esc(pos.symbol) + '</span><span class="mono muted">' + pos.qty + ' akc. × ' + pos.entry.toFixed(2) + '</span><span class="mono">Kaina ' + pos.last_price.toFixed(2) + ' <span class="' + cls(open) + '">' + signed(open) + '</span></span><span class="xs muted mono">' + hm(pos.last_price_at) + ' ET</span></div>' +
+        '<div class="ladder" role="img" aria-label="Kaina ' + pos.last_price + ' tarp stop ' + pos.stop + ' ir target ' + pos.target + '"><div class="track" style="background:linear-gradient(90deg,var(--orange) 0 ' + en + '%,var(--blue-strong) ' + en + '% 100%)"></div><div class="entry" style="left:' + en + '%"></div><div class="now" style="left:' + at + '%"></div></div>' +
+        '<div class="ladder-labels"><span style="color:var(--orange)">Stop ' + pos.stop.toFixed(2) + '</span><span class="muted" style="text-align:center">Įėjimas ' + pos.entry.toFixed(2) + '<br>' + hm(pos.entry_at) + ' ET</span><span style="color:var(--blue);text-align:right">Target ' + pos.target.toFixed(2) + '</span></div>' +
+        '<div class="inset" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px"><div><div class="small muted">Uždaryti iki</div><div class="mono" style="font-size:17px;font-weight:600">' + esc(pos.flat_by) + ' ET</div></div><button type="button" class="btn" data-act="flatten">Uždaryti dabar</button></div>';
+    }
+
+    var j = S.journal || [];
+    $("journal").innerHTML = j.length ? j.slice(0, 25).map(function (r) {
+      var color = r.kind === "entry" ? "var(--blue)" : r.kind === "ticket" || r.kind === "error" ? "var(--orange)" : "var(--text)";
+      return '<li><span class="mono small muted">' + hm(r.at) + '</span><div><div style="font-weight:600;color:' + color + '">' + esc(r.title) + '</div><div class="small muted">' + esc(r.detail) + '</div></div></li>';
+    }).join("") : '<li class="empty">Žurnalas tuščias.</li>';
+  }
+
+  function pickEval(lp) {
+    if (!lp || !lp.evaluations.length) return null;
+    var c = lp.evaluations.filter(function (e) { return e.passed; })[0];
+    return c || lp.evaluations[lp.evaluations.length - 1];
+  }
+  function stepOf(ev, name) { return ev.steps.filter(function (s) { return s.name === name; })[0]; }
+
+  function renderCand() {
+    var lp = S.last_pass;
+    if (!lp || !lp.evaluations.length) { $("cand-pick").innerHTML = ""; $("cand").innerHTML = '<div class="panel"><p class="empty">Kandidatų dar nebuvo.</p></div>'; $("cand-sub").textContent = ""; return; }
+    var def = lp.evaluations.indexOf(pickEval(lp));
+    if (candIdx == null || candIdx >= lp.evaluations.length) candIdx = def;
+    $("cand-sub").textContent = "Patikra " + lp.now + " ET";
+    $("cand-pick").innerHTML = lp.evaluations.map(function (e, i) { return '<button type="button" data-cand="' + i + '" aria-pressed="' + (i === candIdx) + '">' + esc(e.symbol) + (e.passed ? " ✓" : "") + '</button>'; }).join("");
+    var ev = lp.evaluations[candIdx], html = '<div class="row">';
+    var tm = stepOf(ev, "timemachine"), news = stepOf(ev, "news"), bud = stepOf(ev, "budget"), entry = stepOf(ev, "entry");
+    html += '<div class="grow-2 stack" style="gap:16px;min-width:0">';
+    var sub = entry && entry.data && entry.data.trigger ? esc(entry.data.trigger.time) + " · " + esc(entry.data.trigger.price) : "";
+    html += '<div class="head"><h1 style="font-size:36px">' + esc(ev.symbol) + ' <span class="mono muted" style="font-size:20px;font-weight:500">' + sub + '</span></h1><span class="pill' + (ev.passed ? "" : " stop") + '">' + (ev.passed ? "VISI VARTAI PRAEITI" : "PRALEISTA") + '</span></div>';
+    if (tm && tm.data && tm.data.mc) {
+      var mc = tm.data.mc, h = tm.data.history || {};
+      var odds = [["Target pirmas", mc.p_target, "var(--blue-strong)"], ["Stop pirmas", mc.p_stop, "var(--orange)"], ["Nei vienas", mc.p_neither, "var(--grey-bar)"], ["Pliuse " + (mc.until || ""), mc.p_green, "var(--blue)"]];
+      html += '<section class="panel"><div class="head"><h2>Time Machine · ' + esc(mc.replays) + ' sesijų</h2><span class="mono small muted">seed ' + esc(mc.seed) + ' · ' + esc(mc.pool_sessions) + ' sesijos</span></div>' +
+        '<p class="inset" style="margin:0;font-weight:600">' + esc(tm.data.verdict) + '</p><div class="odds">' +
+        odds.map(function (o) { return '<div><span class="small muted">' + o[0] + '</span><div class="bar" role="img" aria-label="' + pct(o[1] || 0) + '"><span style="width:' + pct(o[1] || 0) + ';background:' + o[2] + '"></span></div><span class="mono" style="text-align:right">' + pct(o[1] || 0) + '</span></div>'; }).join("") +
+        '</div><div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">' +
+        '<div class="inset"><div class="xs muted">Kaina pabaigoje (mediana)</div><div class="mono" style="font-size:17px">' + esc(mc.median_close) + '</div><div class="xs muted">90%: ' + esc(mc.p5_close) + ' – ' + esc(mc.p95_close) + '</div></div>' +
+        '<div class="inset"><div class="xs muted">Vidutinis R</div><div class="mono" style="font-size:17px">' + esc(mc.avg_R) + '</div></div>' +
+        '<div class="inset"><div class="xs muted">Istorija</div><div class="mono" style="font-size:17px">' + esc(h.triggered) + ' iš ' + esc(h.sessions) + '</div><div class="xs muted">' + esc(h.target) + ' target · ' + esc(h.stop) + ' stop · ' + esc(h.close) + ' nei · R ' + esc(h.avg_R) + '</div></div></div></section>';
+    }
+    html += '<section class="panel"><h2>Grandinė</h2><ul class="list chain">' + ev.steps.map(function (s) {
+      var icon = s.ok ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3FB950" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>' : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F0A030" stroke-width="2.5" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      return '<li>' + icon + '<strong>' + esc(STEP[s.name] || s.name) + '</strong><div><div class="mono small">' + esc(s.summary) + '</div>' + (s.warnings || []).map(function (w) { return '<div class="small muted">' + esc(w) + '</div>'; }).join("") + '</div></li>';
+    }).join("") + '</ul></section>';
+    if (news && news.data) {
+      var mv = (news.data.moves || [])[0];
+      html += '<section class="panel"><div class="head"><h2>Naujienos</h2>' + (mv ? '<span class="mono small" style="color:var(--orange)">' + (mv.pct > 0 ? "+" : "") + esc(mv.pct) + '% vs vakar</span>' : "") + '</div><ul class="list log">' +
+        ((news.data.items || []).map(function (n) { return '<li><span class="mono small muted">' + hm(n.time) + '</span><div><div>' + (n.link && /^https:\/\//.test(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) + '</a>' : esc(n.title)) + '</div><div class="mono xs muted">' + esc((n.tags || []).join(" · ")) + '</div></div></li>'; }).join("") || '<li class="empty">Naujienų nėra.</li>') + '</ul></section>';
+    }
+    html += '</div><aside class="grow-1 stack" style="gap:16px;min-width:0" aria-label="Orderis">';
+    if (ev.order) {
+      var o = ev.order;
+      html += '<section class="panel"><h2>Orderio bilietas</h2><div class="kv"><span class="muted">Pirkti</span><span>' + esc(o.qty) + ' ' + esc(o.symbol) + ', ' + esc(o.type) + '</span></div><div class="kv"><span class="muted">Stop-loss</span><span style="color:var(--orange)">' + esc(o.stop_loss_stop_price) + '</span></div><div class="kv"><span class="muted">Take-profit</span><span style="color:var(--blue)">' + esc(o.take_profit_limit_price) + '</span></div><p class="small muted" style="margin:0">' + esc(o.why) + '</p></section>';
+    }
+    if (bud && bud.data && bud.data.sizing && bud.data.sizing.limits) {
+      html += '<section class="panel"><h2>Kodėl ' + esc(bud.data.sizing.qty) + ' akc.</h2><ul class="list">' + bud.data.sizing.limits.map(function (l) { return '<li class="kv' + (l.binds ? "" : " muted") + '"><span>' + (l.binds ? "<strong>" : "") + esc(l.name) + (l.binds ? "</strong>" : "") + '<br><span class="xs">' + esc(l.how) + '</span></span><span>' + esc(l.shares) + '</span></li>'; }).join("") + '</ul></section>';
+    }
+    html += '</aside></div>';
+    $("cand").innerHTML = html;
+  }
+
+  function renderTrades() {
+    var tr = S.trades || [], n = tr.length, wins = tr.filter(function (t) { return t.pnl > 0; }).length;
+    var pnl = tr.reduce(function (a, t) { return a + t.pnl; }, 0), rs = tr.map(function (t) { return t.r || 0; });
+    var avg = n ? rs.reduce(function (a, b) { return a + b; }, 0) / n : 0;
+    $("tr-kpis").innerHTML =
+      '<div class="panel kpi"><span class="small muted">Sandoriai (paskutiniai ' + n + ')</span><span class="val">' + n + '</span></div>' +
+      '<div class="panel kpi"><span class="small muted">Pelningi</span><span class="val">' + (n ? Math.round(100 * wins / n) : 0) + '%</span><span class="small muted">' + wins + ' iš ' + n + '</span></div>' +
+      '<div class="panel kpi"><span class="small muted">Rezultatas</span><span class="val ' + cls(pnl) + '">' + signed(pnl) + '</span></div>' +
+      '<div class="panel kpi"><span class="small muted">Vidutinis R</span><span class="val ' + cls(avg) + '">' + (avg >= 0 ? "+" : "") + avg.toFixed(2) + '</span><span class="small muted">vertinkite tik po kelių savaičių</span></div>';
+    var why = { stop: "stop-loss", target: "take-profit", flat_by: "flat by", manual: "rankiniu būdu" };
+    $("trades").innerHTML = n ? '<div class="table-box"><table><thead><tr><th scope="col">Data</th><th scope="col">Akcija</th><th scope="col">Kiekis</th><th scope="col">Įėjimas</th><th scope="col">Išėjimas</th><th scope="col">Priežastis</th><th scope="col">Rezultatas</th><th scope="col">R</th></tr></thead><tbody>' +
+      tr.map(function (t) { return '<tr><td>' + esc(t.date) + '</td><td>' + esc(t.symbol) + '</td><td>' + esc(t.qty) + '</td><td>' + esc(t.entry) + ' · ' + hm(t.entry_at) + '</td><td>' + esc(t.exit) + ' · ' + hm(t.exit_at) + '</td><td>' + esc(why[t.reason] || t.reason) + '</td><td class="' + cls(t.pnl) + '">' + signed(t.pnl) + '</td><td class="' + cls(t.r) + '">' + esc(t.r) + '</td></tr>'; }).join("") +
+      '</tbody></table></div>' : '<p class="empty">Uždarytų sandorių dar nėra.</p>';
+  }
+
+  // ---- settings
+  var LIMITS = [["budget", "Biudžetas ($)"], ["cash_buffer_pct", "Grynųjų rezervas (%)"], ["max_loss_per_trade_usd", "Max nuostolis sandoriui ($)"], ["max_daily_loss_usd", "Max dienos nuostolis ($)"], ["max_trades_per_day", "Sandorių per dieną"], ["min_reward_risk", "Min. reward:risk"], ["no_entries_before", "Įėjimai nuo (ET)"], ["no_entries_after", "Įėjimai iki (ET)"], ["flat_by", "Uždaryti iki (ET)"]];
+  var TAGS = ["halt", "legal", "regulatory", "risk", "earnings", "deal", "analyst"];
+  function renderSettings() {
+    var s = S.settings, L = s.limits, F = s.filters;
+    var target = s.plan.target;
+    $("settings").innerHTML =
+      '<div class="row"><section class="panel grow-1"><h2>Režimas</h2><fieldset><legend>Režimas</legend>' +
+      '<label class="choice"><input type="radio" name="mode" value="paper"' + (s.mode === "paper" ? " checked" : "") + '><span><strong>Paper</strong><br><span class="small muted">Botas pats vykdo orderius simuliuotame brokeryje.</span></span></label>' +
+      '<label class="choice"><input type="radio" name="mode" value="live"' + (s.mode === "live" ? " checked" : "") + '><span><strong>Live su patvirtinimu</strong><br><span class="small muted">Botas paruošia bilietą; siunčiate jūs per /trader-broker.</span></span></label></fieldset>' +
+      '<div class="field"><label for="ua">SEC user agent (8-K pranešimams)</label><input id="ua" type="text" name="sec_user_agent" value="' + esc(L.sec_user_agent && L.sec_user_agent !== "Your Name you@example.com" ? L.sec_user_agent : "") + '" placeholder="Vardas Pavardė jus@pavyzdys.lt"></div></section>' +
+      '<section class="panel grow-2"><div><h2>Rizikos limitai</h2><div class="small muted">Juos tikrina /trader-risk. Botas jų niekada nekeičia.</div></div><div class="fields">' +
+      LIMITS.map(function (f) { return '<div class="field"><label for="l-' + f[0] + '">' + f[1] + '</label><input id="l-' + f[0] + '" type="text" data-limit="' + f[0] + '" value="' + esc(L[f[0]]) + '"></div>'; }).join("") + '</div></section></div>' +
+      '<div class="row"><section class="panel grow-1"><h2>Sandorio planas</h2><div class="field"><label for="stop">Stop</label><select id="stop">' +
+      [["or-mid", "Intervalo vidurys (or-mid)"], ["or-low", "Intervalo žemutinė riba (or-low)"], ["atr:1.5", "1.5 × ATR"]].map(function (o) { return '<option value="' + o[0] + '"' + (s.plan.stop === o[0] ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") +
+      '</select></div><fieldset><legend>Target</legend><div class="pills" id="targets">' + ["1R", "1.5R", "2R"].map(function (t) { return '<button type="button" data-target="' + t + '" aria-pressed="' + (t === target) + '">' + t + '</button>'; }).join("") + '</div></fieldset>' +
+      '<div class="field"><label for="slip">Paper slippage (bps)</label><input id="slip" type="text" value="' + esc(s.paper.slippage_bps) + '"></div></section>' +
+      '<section class="panel grow-2"><h2>Boto filtrai</h2><fieldset><legend>Praleisti, jei naujienose yra žyma</legend><div class="checks">' +
+      TAGS.map(function (t) { return '<label><input type="checkbox" data-tag="' + t + '"' + (F.block_news_tags.indexOf(t) >= 0 ? " checked" : "") + '> <span class="mono">' + t + '</span></label>'; }).join("") + '</div></fieldset>' +
+      '<div class="checks"><label><input type="checkbox" id="imp"' + (F.block_important_filings ? " checked" : "") + '> Praleisti po svarbaus 8-K pranešimo</label></div><div class="fields">' +
+      '<div class="field"><label for="age">Pramušimas ne senesnis nei (min.)</label><input id="age" type="text" value="' + esc(s.scan.max_trigger_age_minutes) + '"></div>' +
+      '<div class="field"><label for="hist">Min. signalų istorijoje (60 d.)</label><input id="hist" type="text" value="' + esc(F.min_history_triggers) + '"></div></div></section></div>' +
+      '<div class="row" style="justify-content:flex-end;align-items:center;gap:12px"><span class="small" id="save-msg" role="status" aria-live="polite"></span><button type="button" class="btn ghost" id="reset">Atšaukti</button><button type="submit" class="btn primary">Išsaugoti</button></div>';
+  }
+  function num(v, name) { var n = Number(String(v).replace(",", ".")); if (!isFinite(n)) throw new Error(name + ": ne skaičius"); return n; }
+  function collect() {
+    var f = $("settings"), limits = {};
+    LIMITS.forEach(function (l) { var v = f.querySelector('[data-limit="' + l[0] + '"]').value.trim(); limits[l[0]] = /^\d\d:\d\d$/.test(v) ? v : num(v, l[1]); });
+    var ua = $("ua").value.trim(); if (ua) limits.sec_user_agent = ua;
+    var t = f.querySelector('#targets [aria-pressed="true"]');
+    return {
+      mode: f.querySelector('input[name="mode"]:checked').value,
+      limits: limits,
+      plan: { stop: $("stop").value, target: t ? t.dataset.target : "2R" },
+      paper: { slippage_bps: num($("slip").value, "Slippage") },
+      scan: { max_trigger_age_minutes: Math.round(num($("age").value, "Pramušimo amžius")) },
+      filters: { block_news_tags: Array.prototype.map.call(f.querySelectorAll("[data-tag]:checked"), function (c) { return c.dataset.tag; }), block_important_filings: $("imp").checked, min_history_triggers: Math.round(num($("hist").value, "Min. signalų")) }
+    };
+  }
+
+  // ---- events
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.id === "pause") post("/api/control", { paused: !(S.control && S.control.paused) }).then(load);
+    else if (b.dataset.act === "flatten") { if (confirm("Uždaryti poziciją kitoje patikroje?")) post("/api/control", { flatten: true }).then(load); }
+    else if (b.dataset.act === "clear") post("/api/control", { clear_pending: true }).then(load);
+    else if (b.dataset.cand != null) { candIdx = Number(b.dataset.cand); renderCand(); }
+    else if (b.dataset.target) { settingsDirty = true; document.querySelectorAll("#targets button").forEach(function (x) { x.setAttribute("aria-pressed", x === b); }); }
+    else if (b.id === "reset") { settingsDirty = false; renderSettings(); }
+  });
+  $("settings").addEventListener("input", function () { settingsDirty = true; });
+  $("settings").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var msg = $("save-msg");
+    try {
+      post("/api/settings", collect()).then(function () { settingsDirty = false; return load(); })
+        .then(function () { $("save-msg").textContent = "Išsaugota. Botas naudos nuo kitos patikros."; })
+        .catch(function (err) { $("save-msg").textContent = "Klaida: " + err.message; });
+    } catch (err) { msg.textContent = "Klaida: " + err.message; }
+  });
+
+  load();
+  setInterval(load, 10000);
+})();
+</script>
+</body>
+</html>

@@ -135,9 +135,9 @@ galioti).
 2. ✅ **Vieno sandorio grandinė** offline: TSLA 2026-10-19 replay turi duoti tą
    patį kaip skills README (įėjimas 364.18 10:15, stop 358.32, target 370.04,
    8 akcijos, PASS).
-3. **Paper brokeris + žurnalas**, dienos ataskaita (sandoriai, laimėjimų
+3. ✅ **Paper brokeris + žurnalas**, dienos ataskaita (sandoriai, laimėjimų
    dalis, vidutinis R, $).
-4. **Scheduler ir gyvas paper režimas** visai dienai su Yahoo duomenimis.
+4. ✅ **Scheduler ir gyvas paper režimas** visai dienai su Yahoo duomenimis.
 5. **Replay/backtest**: paskutinių ~60 dienų (Yahoo 5 min. riba) paleidimas
    per visą grandinę, rezultatai lyginami su Time Machine istorija.
 6. **Live su patvirtinimu** ir pranešimais.

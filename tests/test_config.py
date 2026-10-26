@@ -18,7 +18,7 @@ class Config(unittest.TestCase):
         self.assertEqual(cfg.limits["max_loss_per_trade_usd"], 50)
 
     def test_defaults_without_file(self):
-        self.assertEqual(config.load(None).workspace, "runs/paper")
+        self.assertEqual(config.load(None).workspace_dir(), "runs/paper")
 
     def write(self, text):
         tmp = tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False)

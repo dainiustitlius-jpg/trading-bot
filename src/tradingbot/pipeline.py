@@ -254,3 +254,71 @@ class Pipeline:
             if ev.passed:
                 break
         return result
+
+
+# -- compact JSON for the dashboard ------------------------------------------
+
+
+def _scalars(d: dict | None) -> dict:
+    return {k: v for k, v in (d or {}).items() if not isinstance(v, (list, dict))}
+
+
+def _step_data(step: Step) -> dict | None:
+    d = step.data
+    if not isinstance(d, dict):
+        return None
+    if step.name == "market":
+        return _scalars(d)
+    if step.name == "scan":
+        hits = d.get("hits", [])
+        return {**_scalars(d), "hits": [{"symbol": h.get("symbol"), "at": h.get("at")} for h in hits[:40]]}
+    if step.name == "news":
+        items = [
+            {k: i.get(k) for k in ("time", "title", "tags", "link", "ticker", "important")}
+            for i in d.get("items", [])[:8]
+        ]
+        return {"items": items, "moves": d.get("moves", []), "notes": d.get("notes", [])}
+    if step.name == "entry":
+        return {k: d.get(k) for k in ("status", "trigger", "opening_range", "level", "minutes_since")}
+    if step.name == "timemachine":
+        return {
+            "verdict": d.get("verdict"),
+            "verdict_notes": d.get("verdict_notes"),
+            "mc": _scalars(d.get("mc")),
+            "history": _scalars(d.get("history")),
+        }
+    if step.name == "budget":
+        return {"sizing": d.get("sizing")}
+    if step.name == "risk":
+        return {"result": (d.get("results") or [None])[0], "today": d.get("today")}
+    return d  # exit: the plan itself, small
+
+
+def step_dict(step: Step | None) -> dict | None:
+    if step is None:
+        return None
+    return {
+        "name": step.name,
+        "ok": step.ok,
+        "summary": step.summary,
+        "warnings": step.warnings,
+        "data": _step_data(step),
+    }
+
+
+def pass_dict(res: PassResult) -> dict:
+    return {
+        "now": res.now,
+        "market": step_dict(res.market),
+        "scan": step_dict(res.scan),
+        "evaluations": [
+            {
+                "symbol": ev.symbol,
+                "passed": ev.passed,
+                "order": ev.order,
+                "steps": [step_dict(s) for s in ev.steps],
+            }
+            for ev in res.evaluations
+        ],
+        "chosen": res.chosen.symbol if res.chosen else None,
+    }

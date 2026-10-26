@@ -1,7 +1,7 @@
 # Copy to config/bot.toml (git-ignored) and edit.
 
 mode = "paper"            # paper | live. Live never places orders itself: you approve via /trader-broker.
-workspace = "runs/paper"  # holds trader/ for this mode; keep paper and live apart
+# workspace = "runs/paper"  # default runs/<mode>: paper and live never share trader/ files
 
 [scan]
 min_price = 5
@@ -32,3 +32,6 @@ no_entries_before = "09:45"
 no_entries_after = "15:30"
 flat_by = "15:55"
 # sec_user_agent = "Your Name you@example.com"   # or the SEC_USER_AGENT environment variable
+
+[paper]
+slippage_bps = 5   # added to the entry, taken off stop and market exits

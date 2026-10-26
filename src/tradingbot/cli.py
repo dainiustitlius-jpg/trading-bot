@@ -1,4 +1,4 @@
-"""tradingbot doctor | init | evaluate SYMBOL | pass
+"""tradingbot doctor | init | evaluate SYMBOL | pass | run | replay | dashboard
 
 Replays: --now "2026-10-19 10:15" pins the New York clock and --data DIR reads
 saved data (see skills.ReplayData) instead of the network.
@@ -15,8 +15,10 @@ from dataclasses import asdict
 from pathlib import Path
 
 from . import config as config_mod
+from .bot import Bot, replay_day
 from .clock import Clock
 from .pipeline import Evaluation, PassResult, Pipeline, Step
+from .server import Dashboard, serve
 from .skills import SKILLS_DIR, ReplayData, SkillRunner
 from .workspace import PLACEHOLDER_UA, Workspace
 
@@ -26,7 +28,7 @@ DEFAULT_CONFIG = Path("config/bot.toml")
 def _build(args) -> tuple[config_mod.BotConfig, Workspace, Pipeline]:
     path = args.config or (DEFAULT_CONFIG if DEFAULT_CONFIG.is_file() else None)
     cfg = config_mod.load(path)
-    ws = Workspace(args.workspace or cfg.workspace)
+    ws = Workspace(args.workspace or cfg.workspace_dir())
     ws.prepare(cfg.limits, paper=cfg.mode == "paper")
     replay = ReplayData(Path(args.data).resolve()) if args.data else None
     runner = SkillRunner(ws.root.resolve(), clock=Clock(args.now), replay=replay)
@@ -133,6 +135,55 @@ def cmd_pass(args) -> int:
     return 0 if res.chosen else 1
 
 
+def _config_path(args) -> Path:
+    return Path(args.config) if args.config else DEFAULT_CONFIG
+
+
+def _replay(args) -> ReplayData | None:
+    return ReplayData(Path(args.data).resolve()) if args.data else None
+
+
+def _dashboard(args, background: bool):
+    dash = Dashboard(_config_path(args), args.workspace)
+    httpd = serve(dash, args.host, args.port, background=background)
+    print("Pultas: http://%s:%d  (Ctrl+C sustabdo)" % (args.host, args.port))
+    return httpd
+
+
+def cmd_run(args) -> int:
+    bot = Bot(_config_path(args), args.workspace)
+    if not args.no_dashboard:
+        _dashboard(args, background=True)
+    print("Botas veikia (%s), aplankas %s. Patikra kas 5 min." % (bot.cfg.mode, bot.ws.root))
+    try:
+        bot.run_forever()
+    except KeyboardInterrupt:
+        print("Sustabdyta.")
+    return 0
+
+
+def cmd_replay(args) -> int:
+    if not args.workspace:
+        raise ValueError("replay needs --workspace (a folder of its own, e.g. runs/replay)")
+    bot = Bot(_config_path(args), args.workspace, replay=_replay(args))
+    replay_day(bot, args.date, args.start, args.end)
+    print("Žurnalas: %s" % bot.store.journal_path)
+    if args.dashboard:
+        try:
+            _dashboard(args, background=False)
+        except KeyboardInterrupt:
+            pass
+    return 0
+
+
+def cmd_dashboard(args) -> int:
+    try:
+        _dashboard(args, background=False)
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="tradingbot", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -154,6 +205,21 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("pass", parents=[common], help="one pass: clock, scan, candidates until one passes")
     p.add_argument("--symbols", help="skip the scan and evaluate these, comma separated")
     p.set_defaults(func=cmd_pass)
+
+    web = argparse.ArgumentParser(add_help=False)
+    web.add_argument("--host", default="127.0.0.1", help="dashboard address (default: this computer only)")
+    web.add_argument("--port", type=int, default=8765)
+    p = sub.add_parser("run", parents=[common, web], help="the bot loop, every 5 minutes, with the dashboard")
+    p.add_argument("--no-dashboard", action="store_true")
+    p.set_defaults(func=cmd_run)
+    p = sub.add_parser("replay", parents=[common, web], help="tick through one saved day on a pinned clock")
+    p.add_argument("--date", required=True, help="YYYY-MM-DD")
+    p.add_argument("--start", default="09:30")
+    p.add_argument("--end", default="16:05")
+    p.add_argument("--dashboard", action="store_true", help="serve the dashboard over the result afterwards")
+    p.set_defaults(func=cmd_replay)
+    p = sub.add_parser("dashboard", parents=[common, web], help="only the dashboard")
+    p.set_defaults(func=cmd_dashboard)
     args = ap.parse_args(argv)
     # A Windows console may not encode every character a skill prints; never crash on that.
     for stream in (sys.stdout, sys.stderr):
