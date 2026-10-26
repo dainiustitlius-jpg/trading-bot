@@ -1,9 +1,11 @@
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from tradingbot import config
-from tradingbot.clock import Clock, parse_ny
+from tradingbot.clock import Clock, _USEastern, parse_ny
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,6 +44,19 @@ class ClockTest(unittest.TestCase):
 
     def test_utc_input_converts(self):
         self.assertEqual(parse_ny("2026-10-19T14:15:00Z").strftime("%H:%M"), "10:15")
+
+
+class USEasternFallback(unittest.TestCase):
+    """The no-tzdata fallback (Windows) agrees with the IANA zone, transitions included."""
+
+    def test_matches_zoneinfo_every_half_hour(self):
+        real, fake = ZoneInfo("America/New_York"), _USEastern()
+        t = datetime(2026, 1, 1, tzinfo=UTC)
+        while t.year < 2028:
+            a, b = t.astimezone(real), t.astimezone(fake)
+            self.assertEqual(a.replace(tzinfo=None), b.replace(tzinfo=None), t)
+            self.assertEqual(a.utcoffset(), b.utcoffset(), t)
+            t += timedelta(minutes=30)
 
 
 if __name__ == "__main__":

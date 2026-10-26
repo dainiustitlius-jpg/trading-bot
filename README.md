@@ -9,7 +9,28 @@ grandinę `scanner -> news -> entry -> exit -> timemachine -> budget -> risk`
 ir sustoja ties orderiu, kurį `trader-risk` praleido (PASS).
 **Orderių botas dar nesiunčia.**
 
-## Paleidimas
+## Paleidimas Windows (PowerShell)
+
+Reikia [Python 3.11+](https://www.python.org/downloads/) (diegiant pažymėkite
+„Add python.exe to PATH“) ir [Git](https://git-scm.com/download/win).
+
+```powershell
+cd $HOME
+git clone -b claude/eloquent-hawking-x84hhz https://github.com/dainiustitlius-jpg/trading-bot.git
+cd trading-bot
+
+Copy-Item config\bot.example.toml config\bot.toml
+$env:PYTHONPATH = "src"                                    # galioja tik šiame lange
+$env:SEC_USER_AGENT = "Vardas Pavardė jus@pavyzdys.lt"     # nebūtina: 8-K pranešimams
+
+python -m tradingbot doctor
+python -m tradingbot pass --now "2026-10-19 10:15" --data tests/fixtures/replay-2026-10-19 --workspace runs/replay
+python -m unittest discover -s tests
+```
+
+Jei `python` atidaro Microsoft Store, naudokite `py` vietoj `python`.
+
+## Paleidimas Linux / macOS
 
 Reikia Python 3.11 ar naujesnio. Išorinių priklausomybių nėra.
 

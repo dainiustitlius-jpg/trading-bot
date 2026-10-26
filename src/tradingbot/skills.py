@@ -117,10 +117,17 @@ class SkillRunner:
             argv += ["--now", self.clock.iso_text() if skill.now == "iso" else self.clock.ny_text()]
         if offline and skill.offline and self.replay is not None:
             argv += ["--offline", str(self.replay.path(skill.offline))]
-        cmd = [self.python, "-I", str(self.script(name))] + argv
+        # -X utf8: the skills print and write UTF-8 on Windows too, where the default is cp1252.
+        cmd = [self.python, "-X", "utf8", "-I", str(self.script(name))] + argv
         try:
             proc = subprocess.run(
-                cmd, cwd=self.workspace, capture_output=True, text=True, timeout=self.timeout
+                cmd,
+                cwd=self.workspace,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.timeout,
             )
         except subprocess.TimeoutExpired as exc:
             raise SkillError("%s timed out after %ss" % (name, self.timeout)) from exc

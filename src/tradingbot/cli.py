@@ -155,6 +155,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--symbols", help="skip the scan and evaluate these, comma separated")
     p.set_defaults(func=cmd_pass)
     args = ap.parse_args(argv)
+    # A Windows console may not encode every character a skill prints; never crash on that.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     try:
         return args.func(args)
     except (ValueError, OSError) as exc:
